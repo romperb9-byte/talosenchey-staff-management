@@ -3,6 +3,8 @@
 
 const STORAGE_KEY = 'talosenchey_staff_data_v1';
 const SUPABASE_CONFIG_KEY = 'talosenchey_supabase_cfg_v1';
+const DEFAULT_SUPABASE_URL = 'https://muygvatrxuoejopnmudh.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_NHlDaeyuf4Zex8i4CXK4-Q_WincTGwl';
 
 // Salary scales lookup table
 const SALARY_SCALE_RATES = {
@@ -1387,15 +1389,19 @@ function showToast(message, type = 'info') {
 
 function initSupabase() {
   try {
+    let url = DEFAULT_SUPABASE_URL;
+    let key = DEFAULT_SUPABASE_KEY;
     const raw = localStorage.getItem(SUPABASE_CONFIG_KEY);
     if (raw) {
       const cfg = JSON.parse(raw);
       if (cfg.url && cfg.key) {
-        state.supabase.url = cfg.url;
-        state.supabase.key = cfg.key;
-        setupSupabaseClient(cfg.url, cfg.key, false);
+        url = cfg.url;
+        key = cfg.key;
       }
     }
+    state.supabase.url = url;
+    state.supabase.key = key;
+    setupSupabaseClient(url, key, false);
   } catch (err) {
     console.error('Error loading Supabase config:', err);
   }
@@ -1415,15 +1421,27 @@ function setupSupabaseClient(url, key, isManualTest = false) {
     client.from('staff_members').select('id', { count: 'exact', head: true })
       .then(({ count, error }) => {
         if (error) {
-          console.warn('Supabase connection warning:', error.message);
-          state.supabase.connected = false;
-          updateSupabaseStatusUI(false, `បរាជ័យ៖ ${error.message}`, 0);
-          if (isManualTest) {
-            showToast(`មិនអាចភ្ជាប់ Supabase: ${error.message}`, 'error');
+          if (error.code === 'PGRST205' || (error.message && error.message.includes('Could not find the table'))) {
+            // Connected to Supabase, but staff_members table hasn't been created yet
+            state.supabase.connected = true;
+            state.supabase.needsTable = true;
+            updateSupabaseStatusUI(true, 'បានភ្ជាប់ជោគជ័យ (ត្រូវការ Run កូដ SQL បង្កើតតារាង)', 0);
+            if (isManualTest) {
+              showToast('បានភ្ជាប់ Supabase ជោគជ័យ! សូម Run កូដ SQL ដើម្បីបង្កើតតារាង', 'info');
+            }
+          } else {
+            console.warn('Supabase connection warning:', error.message);
+            state.supabase.connected = false;
+            state.supabase.needsTable = false;
+            updateSupabaseStatusUI(false, `បរាជ័យ៖ ${error.message}`, 0);
+            if (isManualTest) {
+              showToast(`មិនអាចភ្ជាប់ Supabase: ${error.message}`, 'error');
+            }
           }
         } else {
           state.supabase.connected = true;
-          updateSupabaseStatusUI(true, 'បានភ្ជាប់ជោគជ័យ', count || 0);
+          state.supabase.needsTable = false;
+          updateSupabaseStatusUI(true, 'បានភ្ជាប់ និងមានតារាងរួចរាល់', count || 0);
           if (isManualTest) {
             showToast('បានភ្ជាប់ទៅកាន់ Supabase ដោយជោគជ័យ!', 'success');
           }
@@ -1517,6 +1535,11 @@ function disconnectSupabase() {
 async function syncAllToSupabase() {
   if (!state.supabase.client || !state.supabase.connected) {
     alert('សូមភ្ជាប់ទៅកាន់ Supabase ជាមុនសិន!');
+    return;
+  }
+  
+  if (state.supabase.needsTable) {
+    alert('តារាង staff_members មិនទាន់ត្រូវបានបង្កើតលើ Supabase នៅឡើយទេ!\n\nសូមចុចប៊ូតុង "ចម្លងកូដ SQL បង្កើតតារាង" រួចយកទៅ Run ក្នុង Supabase Dashboard -> SQL Editor ជាមុនសិន។');
     return;
   }
   
