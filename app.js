@@ -218,8 +218,8 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
-// Quick inline update for any field
-function updateStaffField(id, field, value) {
+// Quick inline update for any field (saves immediately to central Supabase cloud)
+async function updateStaffField(id, field, value) {
   const item = state.staffList.find(x => x.id === id);
   if (!item) return;
   
@@ -232,20 +232,22 @@ function updateStaffField(id, field, value) {
   
   saveData();
   renderStatistics();
-  showToast(`បានកែប្រែ ${item.name_kh} ដោយជោគជ័យ!`, 'success');
   
-  // Real-time Supabase update
+  // Real-time Supabase update into central database
   if (state.supabase.connected && state.supabase.client) {
     const patch = { [field]: item[field], updated_at: new Date().toISOString() };
-    state.supabase.client
+    const { error } = await state.supabase.client
       .from('staff_members')
       .update(patch)
-      .eq('id', id)
-      .then(({ error }) => {
-        if (error) {
-          console.warn('Supabase auto-sync error:', error);
-        }
-      });
+      .eq('id', id);
+    if (error) {
+      console.warn('Supabase update error:', error);
+      showToast(`បរាជ័យក្នុងការរក្សាទុកលើ Cloud: ${error.message}`, 'error');
+      return;
+    }
+    showToast(`☁️ បានរក្សាទុកក្នុងប្រព័ន្ធរួម៖ ${item.name_kh}`, 'success');
+  } else {
+    showToast(`បានកែប្រែ ${item.name_kh} ដោយជោគជ័យ!`, 'success');
   }
 }
 
@@ -927,110 +929,145 @@ function onFormSchoolChange() {
   }
 }
 
-// Save Staff (Create or Update)
-function handleStaffFormSubmit(e) {
+// Save Staff (Create or Update - directly into central shared database)
+async function handleStaffFormSubmit(e) {
   e.preventDefault();
   
-  const nameKh = document.getElementById('fNameKh').value.trim();
-  if (!nameKh) {
-    alert('សូមបញ្ចូល គោត្តនាម-នាម (អក្សរខ្មែរ)');
-    return;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalBtnContent = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      <span>កំពុងរក្សាទុកក្នុងប្រព័ន្ធរួម...</span>
+    `;
   }
-  
-  const staffType = document.getElementById('fStaffType').value;
-  let staffId = document.getElementById('fStaffId').value.trim();
-  if (!staffId && staffType === 'កិច្ចសន្យា') {
-    staffId = 'កិច្ចសន្យា';
-  }
-  
-  const communeCode = document.getElementById('fCommune').value;
-  const communeName = communeCode === '150701' ? 'ឃុំតាលោ' : 'ឃុំផ្ទះរុង';
-  
-  const parseNum = (id) => {
-    const val = document.getElementById(id).value.trim();
-    return val === '' ? 0 : Number(val);
-  };
-  
-  const gender = document.getElementById('fGender').value;
-  
-  const staffObj = {
-    staff_id: staffId,
-    staff_type: staffType,
-    name_kh: nameKh,
-    name_en: document.getElementById('fNameEn').value.trim(),
-    gender: gender,
-    gender_label: gender === 'ស' ? 'ស្រី' : 'ប្រុស',
-    dob: document.getElementById('fDob').value.trim(),
-    
-    // POB
-    pob_province: document.getElementById('fPobProvince').value.trim(),
-    pob_district: document.getElementById('fPobDistrict').value.trim(),
-    pob_commune: document.getElementById('fPobCommune').value.trim(),
-    pob_village: document.getElementById('fPobVillage').value.trim(),
-    
-    // Civil service dates & position
-    join_date: document.getElementById('fJoinDate').value.trim(),
-    tenure_date: document.getElementById('fTenureDate').value.trim(),
-    position: document.getElementById('fPosition').value.trim(),
-    rank_type: document.getElementById('fRankType').value.trim(),
-    rank_date: document.getElementById('fRankDate').value.trim(),
-    
-    // Salary & Benefits
-    base_salary: parseNum('fBaseSalary'),
-    position_allowance: parseNum('fPositionAllowance'),
-    family_children: parseNum('fFamilyChildren'),
-    family_spouse: parseNum('fFamilySpouse'),
-    
-    // Organization
-    commune_code: communeCode,
-    commune_name: communeName,
-    school_code: document.getElementById('fSchoolCode').value.trim(),
-    school_name: document.getElementById('fSchoolName').value.trim(),
-    
-    // National ID & Contact
-    national_id: document.getElementById('fNationalId').value.trim(),
-    id_issue_date: document.getElementById('fIdIssueDate').value.trim(),
-    id_expiry_date: document.getElementById('fIdExpiryDate').value.trim(),
-    account_number: document.getElementById('fAccountNumber').value.trim(),
-    phone: document.getElementById('fPhone').value.trim(),
-    note: document.getElementById('fNote').value.trim()
-  };
-  
-  if (state.editingId !== null) {
-    const index = state.staffList.findIndex(x => x.id === state.editingId);
-    if (index !== -1) {
-      staffObj.id = state.editingId;
-      state.staffList[index] = staffObj;
-      showToast(`បានកែប្រែទិន្នន័យ ${staffObj.name_kh} ដោយជោគជ័យ!`, 'success');
-    }
-  } else {
-    const nextId = state.staffList.length > 0 ? Math.max(...state.staffList.map(x => x.id)) + 1 : 1;
-    staffObj.id = nextId;
-    state.staffList.push(staffObj);
-    showToast(`បានបន្ថែមបុគ្គលិកថ្មី ${staffObj.name_kh} ដោយជោគជ័យ!`, 'success');
-  }
-  
-  saveData();
-  populateSchoolFilterDropdown();
-  closeModal('staffFormModal');
-  render();
 
-  // Supabase Cloud Sync
-  if (state.supabase.connected && state.supabase.client) {
-    const payload = {
-      ...staffObj,
+  try {
+    const nameKh = document.getElementById('fNameKh').value.trim();
+    if (!nameKh) {
+      alert('សូមបញ្ចូល គោត្តនាម-នាម (អក្សរខ្មែរ)');
+      return;
+    }
+    
+    const staffType = document.getElementById('fStaffType').value;
+    let staffId = document.getElementById('fStaffId').value.trim();
+    if (!staffId && staffType === 'កិច្ចសន្យា') {
+      staffId = 'កិច្ចសន្យា';
+    }
+    
+    const communeCode = document.getElementById('fCommune').value;
+    const communeName = communeCode === '150701' ? 'ឃុំតាលោ' : 'ឃុំផ្ទះរុង';
+    
+    const parseNum = (id) => {
+      const val = document.getElementById(id).value.trim();
+      return val === '' ? 0 : Number(val);
+    };
+    
+    const gender = document.getElementById('fGender').value;
+
+    let targetId = state.editingId;
+    if (targetId === null) {
+      // New record: determine next unique ID from Supabase if connected
+      if (state.supabase.connected && state.supabase.client) {
+        try {
+          const { data: maxRows } = await state.supabase.client
+            .from('staff_members')
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1);
+          if (maxRows && maxRows.length > 0 && maxRows[0].id) {
+            targetId = Number(maxRows[0].id) + 1;
+          }
+        } catch (idErr) {
+          console.warn('Could not query max id from Supabase:', idErr);
+        }
+      }
+      if (!targetId) {
+        targetId = state.staffList.length > 0 ? Math.max(...state.staffList.map(x => x.id)) + 1 : 1;
+      }
+    }
+    
+    const staffObj = {
+      id: targetId,
+      staff_id: staffId,
+      staff_type: staffType,
+      name_kh: nameKh,
+      name_en: document.getElementById('fNameEn').value.trim(),
+      gender: gender,
+      gender_label: gender === 'ស' ? 'ស្រី' : 'ប្រុស',
+      dob: document.getElementById('fDob').value.trim(),
+      
+      // POB
+      pob_province: document.getElementById('fPobProvince').value.trim(),
+      pob_district: document.getElementById('fPobDistrict').value.trim(),
+      pob_commune: document.getElementById('fPobCommune').value.trim(),
+      pob_village: document.getElementById('fPobVillage').value.trim(),
+      
+      // Civil service dates & position
+      join_date: document.getElementById('fJoinDate').value.trim(),
+      tenure_date: document.getElementById('fTenureDate').value.trim(),
+      position: document.getElementById('fPosition').value.trim(),
+      rank_type: document.getElementById('fRankType').value.trim(),
+      rank_date: document.getElementById('fRankDate').value.trim(),
+      
+      // Salary & Benefits
+      base_salary: parseNum('fBaseSalary'),
+      position_allowance: parseNum('fPositionAllowance'),
+      family_children: parseNum('fFamilyChildren'),
+      family_spouse: parseNum('fFamilySpouse'),
+      
+      // Organization
+      commune_code: communeCode,
+      commune_name: communeName,
+      school_code: document.getElementById('fSchoolCode').value.trim(),
+      school_name: document.getElementById('fSchoolName').value.trim(),
+      
+      // National ID & Contact
+      national_id: document.getElementById('fNationalId').value.trim(),
+      id_issue_date: document.getElementById('fIdIssueDate').value.trim(),
+      id_expiry_date: document.getElementById('fIdExpiryDate').value.trim(),
+      account_number: document.getElementById('fAccountNumber').value.trim(),
+      phone: document.getElementById('fPhone').value.trim(),
+      note: document.getElementById('fNote').value.trim(),
       updated_at: new Date().toISOString()
     };
-    state.supabase.client
-      .from('staff_members')
-      .upsert(payload)
-      .then(({ error }) => {
-        if (error) {
-          console.warn('Supabase upsert warning:', error);
-        } else {
-          showToast('បានរក្សាទុកលើ Supabase Cloud!', 'success');
-        }
-      });
+    
+    // 1. Direct Save into Central Shared Database (Supabase)
+    if (state.supabase.connected && state.supabase.client) {
+      const { error } = await state.supabase.client
+        .from('staff_members')
+        .upsert(staffObj);
+      if (error) {
+        throw new Error('បញ្ហាក្នុងការរក្សាទុកទៅកាន់ Supabase Cloud: ' + error.message);
+      }
+    }
+    
+    // 2. Update local state
+    const index = state.staffList.findIndex(x => x.id === targetId);
+    if (index !== -1) {
+      state.staffList[index] = staffObj;
+    } else {
+      state.staffList.push(staffObj);
+    }
+    
+    saveData();
+    populateSchoolFilterDropdown();
+    closeModal('staffFormModal');
+    render();
+    
+    showToast(`☁️ បានបញ្ចូលទៅក្នុងប្រព័ន្ធរួមដោយជោគជ័យ៖ ${staffObj.name_kh}`, 'success');
+  } catch (err) {
+    console.error('Error saving staff:', err);
+    alert(err.message || 'មានបញ្ហាក្នុងការរក្សាទុក!');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnContent;
+    }
   }
 }
 
@@ -1223,31 +1260,33 @@ function confirmDeleteStaff(id) {
   openModal('deleteConfirmModal');
 }
 
-function executeDelete() {
+async function executeDelete() {
   if (state.deleteTargetId === null) return;
   
   const id = state.deleteTargetId;
   const item = state.staffList.find(x => x.id === id);
   const name = item ? item.name_kh : '';
   
+  // 1. Delete from Supabase Central Database
+  if (state.supabase.connected && state.supabase.client) {
+    const { error } = await state.supabase.client
+      .from('staff_members')
+      .delete()
+      .eq('id', id);
+    if (error) {
+      alert(`មិនអាចលុបចេញពីប្រព័ន្ធរួមបានទេ៖ ${error.message}`);
+      return;
+    }
+  }
+
+  // 2. Delete from local state
   state.staffList = state.staffList.filter(x => x.id !== id);
   saveData();
   closeModal('deleteConfirmModal');
   state.deleteTargetId = null;
   
-  showToast(`បានលុបឈ្មោះ ${name} ដោយជោគជ័យ!`, 'info');
+  showToast(`🗑️ បានលុបឈ្មោះ ${name} ចេញពីប្រព័ន្ធរួមដោយជោគជ័យ!`, 'info');
   render();
-
-  // Supabase delete sync
-  if (state.supabase.connected && state.supabase.client) {
-    state.supabase.client
-      .from('staff_members')
-      .delete()
-      .eq('id', id)
-      .then(({ error }) => {
-        if (error) console.warn('Supabase delete error:', error);
-      });
-  }
 }
 
 function openModal(modalId) {
@@ -1407,7 +1446,7 @@ function initSupabase() {
   }
 }
 
-function setupSupabaseClient(url, key, isManualTest = false) {
+async function setupSupabaseClient(url, key, isManualTest = false) {
   if (!window.supabase) {
     console.warn('Supabase JS library not loaded yet');
     return;
@@ -1417,46 +1456,106 @@ function setupSupabaseClient(url, key, isManualTest = false) {
     const client = window.supabase.createClient(url, key);
     state.supabase.client = client;
     
-    // Test connectivity by querying table count
-    client.from('staff_members').select('id', { count: 'exact', head: true })
-      .then(({ count, error }) => {
-        if (error) {
-          if (error.code === 'PGRST205' || (error.message && error.message.includes('Could not find the table'))) {
-            // Connected to Supabase, but staff_members table hasn't been created yet
-            state.supabase.connected = true;
-            state.supabase.needsTable = true;
-            updateSupabaseStatusUI(true, 'បានភ្ជាប់ជោគជ័យ (ត្រូវការ Run កូដ SQL បង្កើតតារាង)', 0);
-            if (isManualTest) {
-              showToast('បានភ្ជាប់ Supabase ជោគជ័យ! សូម Run កូដ SQL ដើម្បីបង្កើតតារាង', 'info');
-            }
-          } else {
-            console.warn('Supabase connection warning:', error.message);
-            state.supabase.connected = false;
-            state.supabase.needsTable = false;
-            updateSupabaseStatusUI(false, `បរាជ័យ៖ ${error.message}`, 0);
-            if (isManualTest) {
-              showToast(`មិនអាចភ្ជាប់ Supabase: ${error.message}`, 'error');
-            }
-          }
-        } else {
-          state.supabase.connected = true;
-          state.supabase.needsTable = false;
-          updateSupabaseStatusUI(true, 'បានភ្ជាប់ និងមានតារាងរួចរាល់', count || 0);
-          if (isManualTest) {
-            showToast('បានភ្ជាប់ទៅកាន់ Supabase ដោយជោគជ័យ!', 'success');
-          }
-        }
-      })
-      .catch(err => {
-        state.supabase.connected = false;
-        updateSupabaseStatusUI(false, 'មិនអាចតភ្ជាប់បណ្តាញបាន', 0);
+    // Query central database for all staff members directly on load
+    const { data, count, error } = await client
+      .from('staff_members')
+      .select('*', { count: 'exact' })
+      .order('id', { ascending: true });
+
+    if (error) {
+      if (error.code === 'PGRST205' || (error.message && error.message.includes('Could not find the table'))) {
+        state.supabase.connected = true;
+        state.supabase.needsTable = true;
+        updateSupabaseStatusUI(true, 'បានភ្ជាប់ (ត្រូវការ Run កូដ SQL)', 0);
         if (isManualTest) {
-          showToast('មិនអាចភ្ជាប់ Supabase: សូមពិនិត្យមើល URL', 'error');
+          showToast('បានភ្ជាប់ Supabase ជោគជ័យ! សូម Run កូដ SQL ដើម្បីបង្កើតតារាង', 'info');
         }
-      });
+      } else {
+        console.warn('Supabase connection warning:', error.message);
+        state.supabase.connected = false;
+        state.supabase.needsTable = false;
+        updateSupabaseStatusUI(false, `បរាជ័យ៖ ${error.message}`, 0);
+        if (isManualTest) {
+          showToast(`មិនអាចភ្ជាប់ Supabase: ${error.message}`, 'error');
+        }
+      }
+    } else {
+      state.supabase.connected = true;
+      state.supabase.needsTable = false;
+      
+      // Update local state with latest live data from Central Supabase
+      if (data && data.length > 0) {
+        state.staffList = data;
+        saveData(); // cache in localStorage
+        populateSchoolFilterDropdown();
+        render();
+      }
+      
+      updateSupabaseStatusUI(true, 'ប្រព័ន្ធរួមដំណើរការ (Cloud Live)', (data ? data.length : 0));
+      if (isManualTest) {
+        showToast(`បានភ្ជាប់ប្រព័ន្ធរួមជោគជ័យ! ទិន្នន័យ៖ ${data.length} នាក់`, 'success');
+      }
+
+      // Subscribe to Realtime Postgres Changes across all users
+      subscribeToRealtimeChanges();
+    }
   } catch (err) {
     state.supabase.connected = false;
     updateSupabaseStatusUI(false, err.message, 0);
+  }
+}
+
+let realtimeChannel = null;
+function subscribeToRealtimeChanges() {
+  if (!state.supabase.client || !state.supabase.connected) return;
+  if (realtimeChannel) return; // avoid duplicate listeners
+  
+  try {
+    realtimeChannel = state.supabase.client
+      .channel('public:staff_members_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_members' }, (payload) => {
+        handleRealtimePayload(payload);
+      })
+      .subscribe((status) => {
+        console.log('Supabase Realtime status:', status);
+      });
+  } catch (err) {
+    console.warn('Could not subscribe to Realtime:', err);
+  }
+}
+
+function handleRealtimePayload(payload) {
+  const { eventType, new: newRecord, old: oldRecord } = payload;
+  
+  if (eventType === 'INSERT') {
+    const exists = state.staffList.some(x => x.id === newRecord.id);
+    if (!exists) {
+      state.staffList.push(newRecord);
+      state.staffList.sort((a, b) => a.id - b.id);
+      saveData();
+      populateSchoolFilterDropdown();
+      render();
+      showToast(`📥 មានបុគ្គលិកថ្មីត្រូវបានបញ្ចូលក្នុងប្រព័ន្ធរួម៖ ${newRecord.name_kh}`, 'info');
+      updateSupabaseStatusUI(true, 'ប្រព័ន្ធរួមដំណើរការ (Cloud Live)', state.staffList.length);
+    }
+  } else if (eventType === 'UPDATE') {
+    const index = state.staffList.findIndex(x => x.id === newRecord.id);
+    if (index !== -1) {
+      state.staffList[index] = newRecord;
+      saveData();
+      render();
+      showToast(`🔄 ទិន្នន័យ "${newRecord.name_kh}" ត្រូវបានកែប្រែក្នុងប្រព័ន្ធរួម`, 'info');
+    }
+  } else if (eventType === 'DELETE') {
+    const targetId = oldRecord ? oldRecord.id : null;
+    if (targetId) {
+      state.staffList = state.staffList.filter(x => x.id !== targetId);
+      saveData();
+      populateSchoolFilterDropdown();
+      render();
+      showToast('🗑️ ទិន្នន័យត្រូវបានលុបចេញពីប្រព័ន្ធរួម', 'info');
+      updateSupabaseStatusUI(true, 'ប្រព័ន្ធរួមដំណើរការ (Cloud Live)', state.staffList.length);
+    }
   }
 }
 
