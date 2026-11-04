@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ប្រព័ន្ធស្រង់ និងគ្រប់គ្រងទិន្នន័យបុគ្គលិកអប់រំ - រដ្ឋបាលស្រុកតាលោសែនជ័យ</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+              950: '#172554'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-khmer">
+
+  <!-- Header Banner (Official Cambodian Education Header) -->
+  <header class="bg-white border-b border-slate-200 shadow-xs sticky top-0 z-30 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        
+        <!-- Left: Logo & Title -->
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-950 via-blue-900 to-indigo-800 flex items-center justify-center text-white shadow-md shadow-blue-950/20 shrink-0">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-[11px] text-blue-900 font-bold tracking-wider uppercase">
+              រដ្ឋបាលស្រុកតាលោសែនជ័យ • ការិយាល័យអប់រំ យុវជន និងកីឡា
+            </div>
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+              ប្រព័ន្ធស្រង់ និងគ្រប់គ្រងទិន្នន័យបុគ្គលិកអប់រំ
+            </h1>
+            <p class="text-xs text-slate-500 font-medium">
+              ទម្រង់ស្រង់ព័ត៌មានលម្អិតមន្ត្រីរាជការ ក្របខណ្ឌ • កិច្ចសន្យា • គ្រូកិច្ចព្រមព្រៀង
+            </p>
+          </div>
+        </div>
+
+        <!-- Right: Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Supabase Cloud Sync Button -->
+          <button id="btnSupabaseStatus" onclick="openSupabaseModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition" title="ភ្ជាប់ទិន្នន័យជាមួយ Supabase Cloud Database">
+            <span id="supabaseIndicator" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <span id="supabaseStatusText">Supabase: រៀបចំ</span>
+          </button>
+
+          <button onclick="openAddModal()" class="px-3.5 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>+ បន្ថែមបុគ្គលិកថ្មី</span>
+          </button>
+          
+          <button onclick="exportToCSV()" class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition" title="ទាញយកជា Excel/CSV តាមទម្រង់ពេញលេញ">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            <span>ទាញយក Excel</span>
+          </button>
+
+          <button onclick="triggerPrint()" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition" title="បោះពុម្ពរបាយការណ៍">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            <span>បោះពុម្ព</span>
+          </button>
+
+          <button onclick="resetToDefault()" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" title="កំណត់ទិន្នន័យដើមឡើងវិញ">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+
+    <!-- KPI Statistics Dashboard Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5 no-print">
+      
+      <!-- Total Staff -->
+      <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+        <div class="text-[11px] font-medium text-slate-500 flex items-center justify-between">
+          <span>បុគ្គលិកសរុប</span>
+          <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline justify-between">
+          <div id="statTotalStaff" class="text-2xl font-bold text-slate-900 font-mono">213</div>
+          <div class="text-[10px] text-slate-400">នាក់</div>
+        </div>
+        <div class="mt-1 text-[11px] text-slate-500 flex gap-2">
+          <span>ស្រី៖ <b id="statFemaleCount" class="text-pink-600">0</b></span>
+          <span>•</span>
+          <span>ប្រុស៖ <b id="statMaleCount" class="text-blue-600">0</b></span>
+        </div>
+      </div>
+
+      <!-- Civil Servants (ក្របខណ្ឌ) -->
+      <div class="bg-white p-3.5 rounded-xl border border-blue-200/60 shadow-2xs flex flex-col justify-between">
+        <div class="text-[11px] font-medium text-blue-700 flex items-center justify-between">
+          <span>មន្ត្រីក្របខណ្ឌ</span>
+          <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline justify-between">
+          <div id="statCivilCount" class="text-2xl font-bold text-blue-900 font-mono">167</div>
+          <div class="text-[10px] text-blue-400">នាក់</div>
+        </div>
+        <div class="mt-1 text-[11px] text-blue-600 font-medium">មានអត្តលេខរដ្ឋ</div>
+      </div>
+
+      <!-- Contract Staff (កិច្ចសន្យា) -->
+      <div class="bg-white p-3.5 rounded-xl border border-emerald-200/60 shadow-2xs flex flex-col justify-between">
+        <div class="text-[11px] font-medium text-emerald-700 flex items-center justify-between">
+          <span>បុគ្គលិកកិច្ចសន្យា</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline justify-between">
+          <div id="statContractCount" class="text-2xl font-bold text-emerald-900 font-mono">46</div>
+          <div class="text-[10px] text-emerald-500">នាក់</div>
+        </div>
+        <div class="mt-1 text-[11px] text-emerald-600 font-medium">គ្រូកិច្ចសន្យាស្រុក</div>
+      </div>
+
+      <!-- Agreement Teachers (គ្រូកិច្ចព្រមព្រៀង) -->
+      <div class="bg-white p-3.5 rounded-xl border border-purple-200/60 shadow-2xs flex flex-col justify-between">
+        <div class="text-[11px] font-medium text-purple-700 flex items-center justify-between">
+          <span>គ្រូកិច្ចព្រមព្រៀង</span>
+          <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline justify-between">
+          <div id="statAgreementCount" class="text-2xl font-bold text-purple-900 font-mono">0</div>
+          <div class="text-[10px] text-purple-500">នាក់</div>
+        </div>
+        <div class="mt-1 text-[11px] text-purple-600 font-medium">គ្រូតាមកិច្ចព្រមព្រៀង</div>
+      </div>
+
+      <!-- Total Base Salary Card -->
+      <div class="bg-gradient-to-br from-blue-950 via-blue-900 to-indigo-900 text-white p-3.5 rounded-xl shadow-2xs col-span-2 flex flex-col justify-between">
+        <div class="text-[11px] text-blue-200 flex items-center justify-between">
+          <span>ប្រាក់បៀវត្សមូលដ្ឋានសរុប (ស្រុក)</span>
+          <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded font-mono">សរុបប្រចាំខែ</span>
+        </div>
+        <div class="mt-1">
+          <div id="statTotalBaseSalary" class="text-2xl font-extrabold font-mono text-amber-300">0 ៛</div>
+        </div>
+        <div class="mt-1 text-[11px] text-blue-100 flex flex-wrap justify-between gap-1">
+          <span>តាលោ: <b id="statTalaoSummary" class="text-amber-200">111 នាក់</b></span>
+          <span>•</span>
+          <span>ផ្ទះរុង: <b id="statPhteahRungSummary" class="text-amber-200">102 នាក់</b></span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Navigation Tabs & Table View Toggle -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 mb-5 no-print">
+      
+      <!-- Left Tabs -->
+      <div class="flex items-center gap-1 text-xs">
+        <button id="tabBtn-staff-list" onclick="switchTab('staff-list')" class="px-3.5 py-2 font-semibold text-blue-900 border-b-2 border-blue-800 flex items-center gap-1.5 bg-blue-50/50 rounded-t-lg">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <span>បញ្ជីទិន្នន័យបុគ្គលិក</span>
+        </button>
+
+        <button id="tabBtn-school-summary" onclick="switchTab('school-summary')" class="px-3.5 py-2 font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 rounded-t-lg transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          <span>របាយការណ៍តាមសាលា និងឃុំ</span>
+        </button>
+
+        <button id="tabBtn-reference-scale" onclick="switchTab('reference-scale')" class="px-3.5 py-2 font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 rounded-t-lg transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>តារាងក្របខណ្ឌ និងមុខងារយោង</span>
+        </button>
+      </div>
+
+      <!-- Right: Toggle Display Mode (Full vs Compact) -->
+      <div class="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-xl mb-2 sm:mb-0">
+        <span class="text-[11px] font-semibold text-slate-600 px-2">ទម្រង់បង្ហាញ៖</span>
+        <button id="btnModeFull" onclick="setTableViewMode('full_profile')" class="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-900 text-white shadow-xs transition">
+          ទម្រង់មន្ត្រីរាជការពេញលេញ (២៣ ជួរឈរ)
+        </button>
+        <button id="btnModeAllowance" onclick="setTableViewMode('allowance')" class="px-3 py-1 text-xs font-medium rounded-lg text-slate-700 hover:bg-slate-300 transition">
+          ទម្រង់សង្ខេប
+        </button>
+      </div>
+
+    </div>
+
+    <!-- TAB 1: Staff Data Table & Filters -->
+    <div id="tabPane-staff-list" class="space-y-3.5">
+      
+      <!-- Filter and Search Box -->
+      <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs no-print space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
+          
+          <!-- Search Bar -->
+          <div class="md:col-span-4 relative">
+            <input type="text" id="searchInput" placeholder="ស្វែងរកតាម ឈ្មោះ, អត្តលេខ, គណនី, ទូរសព្ទ, សាលា..." 
+                   class="w-full pl-8 pr-4 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+          </div>
+
+          <!-- Filter Staff Type -->
+          <div class="md:col-span-2">
+            <select id="filterStaffType" class="w-full py-2 px-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="ALL">ប្រភេទបុគ្គលិកទាំងអស់</option>
+              <option value="ក្របខណ្ឌ">ក្របខណ្ឌ (១៦៧)</option>
+              <option value="កិច្ចសន្យា">កិច្ចសន្យា (៤៦)</option>
+              <option value="គ្រូកិច្ចព្រមព្រៀង">គ្រូកិច្ចព្រមព្រៀង</option>
+            </select>
+          </div>
+
+          <!-- Filter Commune -->
+          <div class="md:col-span-2">
+            <select id="filterCommune" class="w-full py-2 px-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="ALL">គ្រប់ឃុំទាំងអស់</option>
+              <option value="150701">ឃុំតាលោ (១៥០៧០១)</option>
+              <option value="150702">ឃុំផ្ទះរុង (១៥០៧០២)</option>
+            </select>
+          </div>
+
+          <!-- Filter School -->
+          <div class="md:col-span-2">
+            <select id="filterSchool" class="w-full py-2 px-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="ALL">គ្រប់សាលារៀនទាំងអស់</option>
+            </select>
+          </div>
+
+          <!-- Filter Gender -->
+          <div class="md:col-span-1">
+            <select id="filterGender" class="w-full py-2 px-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="ALL">ភេទទាំងអស់</option>
+              <option value="ស">ស្រី</option>
+              <option value="ប">ប្រុស</option>
+            </select>
+          </div>
+
+          <!-- Clear Filters -->
+          <div class="md:col-span-1 flex justify-end">
+            <button onclick="clearFilters()" class="w-full py-2 px-2 border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition" title="កំណត់ជម្រើសស្វែងរកឡើងវិញ">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>សម្អាត</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Table Card -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        
+        <!-- Table Scroll Container -->
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead id="staffTableHead" class="font-khmer">
+              <!-- Dynamically rendered based on viewMode -->
+            </thead>
+            <tbody id="staffTableBody" class="divide-y divide-slate-100 font-khmer">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table Footer / Pagination -->
+        <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 no-print">
+          
+          <div class="flex items-center gap-2">
+            <span>ចំនួនជួរក្នុងមួយទំព័រ៖</span>
+            <select id="pageSizeSelect" class="border border-slate-300 rounded px-2 py-1 text-xs bg-white outline-none">
+              <option value="15">15</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="9999">បង្ហាញទាំងអស់</option>
+            </select>
+            <span id="paginationInfo" class="ml-2 font-medium">បង្ហាញទិន្នន័យ...</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="prevPageBtn" class="px-2.5 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium transition">
+              ទំព័រមុន
+            </button>
+            <span class="px-2 font-mono">ទំព័រ <b id="currentPageDisplay">1</b> / <span id="totalPagesDisplay">1</span></span>
+            <button id="nextPageBtn" class="px-2.5 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-xs font-medium transition">
+              ទំព័របន្ទាប់
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- TAB 2: School & Commune Summary Breakdown -->
+    <div id="tabPane-school-summary" class="hidden">
+      <div id="schoolSummaryContainer">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+
+    <!-- TAB 3: Reference Scale for Civil Servants -->
+    <div id="tabPane-reference-scale" class="hidden space-y-6">
+      
+      <!-- Civil Servant Hierarchy and Position Allowances Reference -->
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6">
+        <h3 class="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          តារាងកម្រិតប្រាក់បំណាច់មុខងារ និងឋានន្តរស័ក្តិមន្ត្រីរាជការ
+        </h3>
+        <p class="text-xs text-slate-500 mb-4">ទិន្នន័យស្តង់ដារកំណត់សម្រាប់ប្រព័ន្ធមុខតំណែង និងប្រាក់បំណាច់មុខងារនៃក្រសួងអប់រំ និងរដ្ឋបាលសាធារណៈ</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">នាយកសាលាបឋមសិក្សា</span>
+            <span class="text-slate-600 font-mono">៩០០,០០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">នាយករងសាលាបឋមសិក្សា</span>
+            <span class="text-slate-600 font-mono">៨១០,០០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">គ្រូបង្រៀនកម្រិតបឋម</span>
+            <span class="text-slate-600 font-mono">៨០០,០០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">គ្រូបង្រៀនកម្រិតមូលដ្ឋាន</span>
+            <span class="text-slate-600 font-mono">៨១០,០០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">គ្រូបង្រៀនកម្រិតឧត្តម</span>
+            <span class="text-slate-600 font-mono">៨២០,០០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">អធិការបឋមសិក្សា</span>
+            <span class="text-slate-600 font-mono">៨៤០,០០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">នាយកវិទ្យាល័យ</span>
+            <span class="text-slate-600 font-mono">៩៤២,៥០០ ៛</span>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <span class="font-bold text-blue-900 block">នាយកអនុវិទ្យាល័យ</span>
+            <span class="text-slate-600 font-mono">៩២០,០០០ ៛</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Salary Steps Table (ក១.១ ដល់ គ.១០) -->
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6">
+        <h3 class="text-base font-bold text-slate-900 mb-2">តារាងកាំប្រាក់បៀវត្សមូលដ្ឋានតាមប្រភេទកាំ (ក១.១ ដល់ គ.១០)</h3>
+        <p class="text-xs text-slate-500 mb-4">កាំប្រាក់បៀវត្សតាមឋានន្តរស័ក្តិ ថ្នាក់ និងកាំប្រាក់ចុងក្រោយនៃមន្ត្រីរាជការ</p>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs font-mono">
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក១.១:</b> 1,446,500៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក១.២:</b> 1,396,530៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក១.៣:</b> 1,349,190៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក១.៤:</b> 1,304,480៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក១.៥:</b> 1,259,770៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក១.៦:</b> 1,212,430៛</div>
+
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក២.១:</b> 1,165,090៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក២.២:</b> 1,120,380៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក២.丙:</b> 1,078,300៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក២.៤:</b> 1,036,220៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក៣.១:</b> 996,770៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ក៣.៤:</b> 907,350៛</div>
+
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ខ១.១:</b> 1,236,100៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ខ១.៦:</b> 1,033,590៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ខ២.១:</b> 999,400៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ខ២.៤:</b> 904,720៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ខ៣.១:</b> 870,530៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>ខ៣.៤:</b> 789,000៛</div>
+
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>គ.១:</b> 1,025,700៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>គ.២:</b> 973,100៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>គ.៣:</b> 925,760៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>គ.៤:</b> 881,050៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>គ.៥:</b> 844,230៛</div>
+          <div class="p-2 bg-slate-50 border rounded text-center"><b>គ.១០:</b> 696,950៛</div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- PRINT REPORT SECTION -->
+  <div class="print-only hidden p-6 font-khmer">
+    <div class="text-center mb-6">
+      <div class="text-base font-bold">ព្រះរាជាណាចក្រកម្ពុជា</div>
+      <div class="text-sm">ជាតិ សាសនា ព្រះមហាក្សត្រ</div>
+      <div class="text-xs text-gray-500 my-2">***</div>
+      <div class="text-sm font-semibold">រដ្ឋបាលស្រុកតាលោសែនជ័យ</div>
+      <div class="text-sm font-semibold">ការិយាល័យអប់រំ យុវជន និងកីឡា</div>
+      <div class="text-base font-bold mt-3">តារាងស្រង់ទិន្នន័យមន្ត្រីរាជការ និងបុគ្គលិកអប់រំ</div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: ADD / EDIT STAFF (COMPREHENSIVE OFFICIAL FORM) -->
+  <div id="staffFormModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4 overflow-y-auto no-print">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden my-6 border border-slate-100">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <h3 id="modalTitle" class="text-base font-bold">កែប្រែទិន្នន័យមន្ត្រីរាជការ និងបុគ្គលិក</h3>
+        </div>
+        <button onclick="closeModal('staffFormModal')" class="text-blue-200 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Sub Tabs in Modal -->
+      <div class="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 text-xs">
+        <button type="button" id="fTabBtn-personal" onclick="switchFormTab('personal')" class="px-3.5 py-2 font-semibold text-blue-800 border-b-2 border-blue-800 bg-blue-50/50">
+          ១. ព័ត៌មានផ្ទាល់ខ្លួន & កំណើត
+        </button>
+        <button type="button" id="fTabBtn-civil" onclick="switchFormTab('civil')" class="px-3.5 py-2 font-medium text-gray-500 hover:text-gray-800">
+          ២. ក្របខ័ណ្ឌ & មុខងារ
+        </button>
+        <button type="button" id="fTabBtn-salary" onclick="switchFormTab('salary')" class="px-3.5 py-2 font-medium text-gray-500 hover:text-gray-800">
+          ៣. បៀវត្ស & ប្រាក់វិភាជន៍
+        </button>
+        <button type="button" id="fTabBtn-contact" onclick="switchFormTab('contact')" class="px-3.5 py-2 font-medium text-gray-500 hover:text-gray-800">
+          ៤. អត្តសញ្ញាណប័ណ្ណ & ទំនាក់ទំនង
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <form id="staffForm" onsubmit="handleStaffFormSubmit(event)" class="p-6 space-y-4">
+        
+        <!-- SUB-TAB 1: ព័ត៌មានផ្ទាល់ខ្លួន និងកំណើត -->
+        <div id="fTabSection-personal" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ប្រភេទបុគ្គលិក <span class="text-red-500">*</span></label>
+              <select id="fStaffType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="ក្របខណ្ឌ">ក្របខណ្ឌ</option>
+                <option value="កិច្ចសន្យា">កិច្ចសន្យា</option>
+                <option value="គ្រូកិច្ចព្រមព្រៀង">គ្រូកិច្ចព្រមព្រៀង</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">អត្តលេខមន្ត្រីរាជការ</label>
+              <input type="text" id="fStaffId" placeholder="ឧ. 2001500039" 
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ឈ្មោះមន្ត្រីរាជការ (ខ្មែរ) <span class="text-red-500">*</span></label>
+              <input type="text" id="fNameKh" placeholder="ឧ. សុត ចន្ធី" required
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ឈ្មោះមន្ត្រីរាជការ (ឡាតាំង)</label>
+              <input type="text" id="fNameEn" placeholder="e.g. Sot Chanthy"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ភេទ <span class="text-red-500">*</span></label>
+              <select id="fGender" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="ស">ស្រី (ស)</option>
+                <option value="ប">ប្រុស (ប)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ថ្ងៃខែឆ្នាំកំណើត</label>
+              <input type="text" id="fDob" placeholder="ឧ. 15-05-1988"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <!-- ទីកន្លែងកំណើត -->
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+            <span class="text-xs font-bold text-slate-700 block">ទីកន្លែងកំណើត (៤ កម្រិត)</span>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">រាជធានី/ខេត្ត</label>
+                <input type="text" id="fPobProvince" placeholder="ឧ. ពោធិ៍សាត់"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">ក្រុង/ស្រុក/ខណ្ឌ</label>
+                <input type="text" id="fPobDistrict" placeholder="ឧ. តាលោសែនជ័យ"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">ឃុំ/សង្កាត់</label>
+                <input type="text" id="fPobCommune" placeholder="ឧ. តាលោ"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">ភូមិ</label>
+                <input type="text" id="fPobVillage" placeholder="ឧ. ព្រៃរោង"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 2: ក្របខ័ណ្ឌ និងមុខងារ -->
+        <div id="fTabSection-civil" class="hidden space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ថ្ងៃខែឆ្នាំចូលបម្រើការជាមន្ត្រីរាជការ</label>
+              <input type="text" id="fJoinDate" placeholder="ឧ. 01-10-2015"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ថ្ងៃខែឆ្នាំតាំងស៊ប់ក្នុងក្របខ័ណ្ឌ</label>
+              <input type="text" id="fTenureDate" placeholder="ឧ. 01-10-2016"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                មុខងារ <span class="text-blue-600 font-normal text-[11px]">(អាចសរសេរ ឬជ្រើសរើស)</span>
+              </label>
+              <input type="text" id="fPosition" list="positionList" placeholder="ឧ. គ្រូបង្រៀនកម្រិតបឋម..."
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                ឋានន្តរស័ក្តិ/កាំប្រាក់ចុងក្រោយ (តាមប្រភេទ) <span class="text-blue-600 font-normal text-[11px]">(អាចសរសេរបំពេញបាន)</span>
+              </label>
+              <input type="text" id="fRankType" list="rankTypeList" placeholder="ឧ. ក១.១ ឬសរសេរបំពេញ..."
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono font-semibold text-indigo-900 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">កាលបរិច្ឆេទដំឡើងចុងក្រោយ</label>
+              <input type="text" id="fRankDate" placeholder="ឧ. 13-04-2023"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">ឃុំ/ភូមិសាស្ត្រ <span class="text-red-500">*</span></label>
+              <select id="fCommune" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="150701">ឃុំតាលោ (150701)</option>
+                <option value="150702">ឃុំផ្ទះរុង (150702)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">សាលារៀន/អង្គភាព</label>
+              <select id="fSchoolName" onchange="onFormSchoolChange()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">លេខកូដសាលា</label>
+              <input type="text" id="fSchoolCode" placeholder="ឧ. 15010906047"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: បៀវត្ស និងប្រាក់វិភាជន៍ -->
+        <div id="fTabSection-salary" class="hidden space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-blue-50/40 p-4 rounded-xl border border-blue-200/80">
+              <label class="block text-xs font-bold text-blue-900 mb-1">ប្រាក់បៀវត្សមូលដ្ឋាន (រៀល)</label>
+              <input type="number" id="fBaseSalary" placeholder="ឧ. 1446500"
+                     class="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              <p class="text-[11px] text-slate-500 mt-1">ប្រាក់ខែមូលដ្ឋានតាមឋានន្តរស័ក្តិ/កាំប្រាក់</p>
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <label class="block text-xs font-bold text-slate-800 mb-1">ប្រាក់បំណាច់មុខងារ (រៀល)</label>
+              <input type="number" id="fPositionAllowance" placeholder="ឧ. 800000"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              <p class="text-[11px] text-slate-500 mt-1">បំណាច់តាមតួនាទី (នាយក, នាយករង, គ្រូបង្រៀន...)</p>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            <span class="text-xs font-bold text-slate-800 block">ប្រាក់វិភាជន៍គ្រួសារ (រៀល)</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">ប្រាក់វិភាជន៍គ្រួសារ (កូន)</label>
+                <input type="number" id="fFamilyChildren" placeholder="ឧ. 0"
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">ប្រាក់វិភាជន៍គ្រួសារ (សហព័ទ្ធ)</label>
+                <input type="number" id="fFamilySpouse" placeholder="ឧ. 0"
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 4: អត្តសញ្ញាណប័ណ្ណ និងទំនាក់ទំនង -->
+        <div id="fTabSection-contact" class="hidden space-y-4">
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+            <span class="text-xs font-bold text-slate-700 block">អត្តសញ្ញាប័ណ្ណសញ្ជាតិខ្មែរ</span>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">លេខអត្តសញ្ញាប័ណ្ណ</label>
+                <input type="text" id="fNationalId" placeholder="ឧ. 040001648620"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">សុពលភាពចាប់ពី</label>
+                <input type="text" id="fIdIssueDate" placeholder="ឧ. 10-02-2018"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">ផុតសុពលភាពថ្ងៃ</label>
+                <input type="text" id="fIdExpiryDate" placeholder="ឧ. 10-02-2028"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">លេខគណនីធនាគារ</label>
+              <input type="text" id="fAccountNumber" placeholder="ឧ. 38720395289714" 
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">លេខទូរសព្ទ</label>
+              <input type="text" id="fPhone" placeholder="ឧ. 012 345 678"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ផ្សេងៗ / សម្គាល់</label>
+            <input type="text" id="fNote" placeholder="ឧ. ពីរពេល, ថែមលុយ..."
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-between items-center pt-3 border-t border-slate-200">
+          <div class="text-[11px] text-slate-400">
+            * ព័ត៌មានទាំងអស់ត្រូវបានរក្សាទុកដោយសុវត្ថិភាពក្នុងកុំព្យូទ័រ
+          </div>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeModal('staffFormModal')" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 font-medium text-xs transition">
+              បោះបង់
+            </button>
+            <button type="submit" class="px-5 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-lg font-semibold text-xs shadow-xs transition">
+              រក្សាទុកទិន្នន័យ
+            </button>
+          </div>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+
+
+  <!-- MODAL: VIEW STAFF PROFILE CARD -->
+  <div id="viewStaffModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4 overflow-y-auto no-print">
+    <div id="viewModalContent" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden my-6 border border-slate-100">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+
+  <!-- MODAL: CONFIRM DELETE -->
+  <div id="deleteConfirmModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 text-center">
+      <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+      <h3 class="text-base font-bold text-slate-900 mb-2">បញ្ជាក់ការលុបទិន្នន័យ</h3>
+      <p id="deleteModalMsg" class="text-xs text-slate-600 mb-5 font-medium">តើអ្នកពិតជាចង់លុបទិន្នន័យបុគ្គលិកនេះចេញពីប្រព័ន្ធមែនទេ?</p>
+      <div class="flex justify-center gap-3">
+        <button onclick="closeModal('deleteConfirmModal')" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 font-medium text-xs">
+          ទេ មិនលុបទេ
+        </button>
+        <button onclick="executeDelete()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-xs">
+          បាទ/ចាស លុបចេញ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SUPABASE CLOUD DATABASE CONFIGURATION -->
+  <div id="supabaseModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4 overflow-y-auto no-print">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden my-6 border border-slate-100">
+      
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold">
+            ⚡
+          </div>
+          <div>
+            <h3 class="text-base font-bold">ការតភ្ជាប់ Supabase Cloud Database</h3>
+            <p class="text-[11px] text-emerald-200">រក្សាទុកទិន្នន័យលើ Cloud និងប្រើប្រាស់រួមគ្នាតាម Online</p>
+          </div>
+        </div>
+        <button onclick="closeModal('supabaseModal')" class="text-emerald-200 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="p-6 space-y-4 font-khmer">
+        
+        <!-- Status Box -->
+        <div id="supabaseStatusBox" class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span id="supabaseModalIndicator" class="w-3 h-3 rounded-full bg-amber-400"></span>
+            <span id="supabaseModalStatusText" class="font-semibold text-slate-700">ស្ថានភាព៖ មិនទាន់ភ្ជាប់</span>
+          </div>
+          <span id="supabaseRecordCountText" class="text-slate-500 font-mono">0 ជួរ</span>
+        </div>
+
+        <!-- Form fields -->
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">
+              Supabase Project URL <span class="text-red-500">*</span>
+            </label>
+            <input type="url" id="sbProjectUrl" placeholder="ឧ. https://xyzcompany.supabase.co" 
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none">
+            <p class="text-[10px] text-slate-400 mt-0.5">យកពី Supabase Dashboard -> Project Settings -> API -> Project URL</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">
+              Supabase Anon / Public Key <span class="text-red-500">*</span>
+            </label>
+            <textarea id="sbAnonKey" rows="2" placeholder="ឧ. eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none resize-none"></textarea>
+            <p class="text-[10px] text-slate-400 mt-0.5">យកពី Supabase Dashboard -> Project Settings -> API -> Project API keys (anon public)</p>
+          </div>
+        </div>
+
+        <!-- Connection Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2 pt-2">
+          <button type="button" onclick="saveAndConnectSupabase()" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span>រក្សាទុក & ភ្ជាប់ទៅ Supabase</span>
+          </button>
+          
+          <button type="button" onclick="disconnectSupabase()" class="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium transition">
+            ផ្តាច់ការតភ្ជាប់
+          </button>
+
+          <button type="button" onclick="copySupabaseSchemaSQL()" class="px-3.5 py-2 border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition" title="ចម្លងកូដ SQL សម្រាប់យកទៅ Run ក្នុង Supabase SQL Editor">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+            <span>ចម្លងកូដ SQL បង្កើតតារាង</span>
+          </button>
+        </div>
+
+        <!-- Cloud Sync Operations (Sync up and down) -->
+        <div class="pt-4 border-t border-slate-200 space-y-2.5">
+          <span class="text-xs font-bold text-slate-800 block">សមកាលកម្មទិន្នន័យ (Cloud Sync)</span>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button type="button" onclick="syncAllToSupabase()" class="p-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-xl text-left transition flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              </div>
+              <div>
+                <span class="text-xs font-bold text-blue-900 block">បញ្ជូនទិន្នន័យទាំងអស់ទៅ Cloud</span>
+                <span class="text-[10px] text-blue-700">Push ២១៣ នាក់ ទៅ Supabase</span>
+              </div>
+            </button>
+
+            <button type="button" onclick="pullAllFromSupabase()" class="p-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-left transition flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              </div>
+              <div>
+                <span class="text-xs font-bold text-emerald-900 block">ទាញយកទិន្នន័យពី Cloud</span>
+                <span class="text-[10px] text-emerald-700">Pull ទិន្នន័យចុងក្រោយមកវិញ</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-[11px] text-amber-800 flex items-start gap-2">
+          <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div>
+            <b>ការណែនាំ៖</b> ប្រសិនបើទើបបង្កើតគម្រោង Supabase ថ្មី សូមចុច <b>«ចម្លងកូដ SQL បង្កើតតារាង»</b> រួចយកទៅបិទភ្ជាប់ (Paste) ក្នុង Supabase Dashboard -> <b>SQL Editor</b> ហើយចុច <b>Run</b> ជាការស្រេច។
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
+        <button type="button" onclick="closeModal('supabaseModal')" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 font-medium text-xs">
+          បិទផ្ទាំង
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- Datalist Suggestions for Free Typing with Autocomplete -->
+  <datalist id="rankTypeList">
+    <option value="ក១.១">ក១.១ (1,446,500៛)</option>
+    <option value="ក១.២">ក១.២ (1,396,530៛)</option>
+    <option value="ក១.៣">ក១.៣ (1,349,190៛)</option>
+    <option value="ក១.៤">ក១.៤ (1,304,480៛)</option>
+    <option value="ក១.៥">ក១.៥ (1,259,770៛)</option>
+    <option value="ក១.៦">ក១.៦ (1,212,430៛)</option>
+    <option value="ក២.១">ក២.១ (1,165,090៛)</option>
+    <option value="ក២.២">ក២.២ (1,120,380៛)</option>
+    <option value="ក២.៣">ក២.៣ (1,078,300៛)</option>
+    <option value="ក២.៤">ក២.៤ (1,036,220៛)</option>
+    <option value="ក៣.១">ក៣.១ (996,770៛)</option>
+    <option value="ក៣.២">ក៣.២ (957,320៛)</option>
+    <option value="ក៣.៣">ក៣.៣ (931,020៛)</option>
+    <option value="ក៣.៤">ក៣.៤ (907,350៛)</option>
+    <option value="ខ១.១">ខ១.១ (1,236,100៛)</option>
+    <option value="ខ១.២">ខ១.២ (1,191,390៛)</option>
+    <option value="ខ១.៣">ខ១.៣ (1,146,680៛)</option>
+    <option value="ខ១.៤">ខ១.៤ (1,107,230៛)</option>
+    <option value="ខ១.៥">ខ១.៥ (1,070,410៛)</option>
+    <option value="ខ១.៦">ខ១.៦ (1,033,590៛)</option>
+    <option value="ខ២.១">ខ២.១ (999,400៛)</option>
+    <option value="ខ២.២">ខ២.២ (970,470៛)</option>
+    <option value="ខ២.៣">ខ២.៣ (941,540៛)</option>
+    <option value="ខ២.៤">ខ២.៤ (904,720៛)</option>
+    <option value="ខ៣.១">ខ៣.១ (870,530៛)</option>
+    <option value="ខ៣.២">ខ៣.២ (836,340៛)</option>
+    <option value="ខ៣.៣">ខ៣.៣ (810,040៛)</option>
+    <option value="ខ៣.៤">ខ៣.៤ (789,000៛)</option>
+    <option value="គ.១">គ.១ (1,025,700៛)</option>
+    <option value="គ.២">គ.២ (973,100៛)</option>
+    <option value="គ.៣">គ.៣ (925,760៛)</option>
+    <option value="គ.៤">គ.៤ (881,050៛)</option>
+    <option value="គ.៥">គ.៥ (844,230៛)</option>
+    <option value="គ.៦">គ.៦ (807,410៛)</option>
+    <option value="គ.៧">គ.៧ (775,850៛)</option>
+    <option value="គ.៨">គ.៨ (746,920៛)</option>
+    <option value="គ.៩">គ.៩ (720,620៛)</option>
+    <option value="គ.១០">គ.១០ (696,950៛)</option>
+  </datalist>
+
+  <datalist id="positionList">
+    <option value="គ្រូបង្រៀនកម្រិតបឋម">គ្រូបង្រៀនកម្រិតបឋម (៨០០,០០០៛)</option>
+    <option value="នាយកសាលាបឋមសិក្សា">នាយកសាលាបឋមសិក្សា (៩០០,០០០៛)</option>
+    <option value="នាយករងសាលាបឋមសិក្សា">នាយករងសាលាបឋមសិក្សា (៨១០,០០០៛)</option>
+    <option value="គ្រូបង្រៀនកម្រិតមូលដ្ឋាន">គ្រូបង្រៀនកម្រិតមូលដ្ឋាន (៨១០,០០០៛)</option>
+    <option value="គ្រូបង្រៀនកម្រិតឧត្តម">គ្រូបង្រៀនកម្រិតឧត្តម (៨២០,០០០៛)</option>
+    <option value="គ្រូបង្រៀនមត្តេយ្យសិក្សា">គ្រូបង្រៀនមត្តេយ្យសិក្សា (៨០០,០០០៛)</option>
+    <option value="នាយកសាលាមត្តេយ្យសិក្សា">នាយកសាលាមត្តេយ្យសិក្សា (៨៩០,០០០៛)</option>
+    <option value="នាយករងមត្តេយ្យសិក្សា">នាយករងមត្តេយ្យសិក្សា (៨១០,០០០៛)</option>
+    <option value="នាយកអនុវិទ្យាល័យ">នាយកអនុវិទ្យាល័យ (៩២០,០០០៛)</option>
+    <option value="នាយករងអនុវិទ្យាល័យ">នាយករងអនុវិទ្យាល័យ (៨២០,០០០៛)</option>
+    <option value="នាយកវិទ្យាល័យ">នាយកវិទ្យាល័យ (៩៤២,៥០០៛)</option>
+    <option value="នាយករងវិទ្យាល័យ">នាយករងវិទ្យាល័យ (៨៣០,០០០៛)</option>
+    <option value="អធិការបឋមសិក្សា">អធិការបឋមសិក្សា (៨៤០,០០០៛)</option>
+    <option value="គ្រូបង្រៀនកិច្ចសន្យា">គ្រូបង្រៀនកិច្ចសន្យា</option>
+    <option value="គ្រូកិច្ចព្រមព្រៀង">គ្រូកិច្ចព្រមព្រៀង</option>
+  </datalist>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm"></div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
