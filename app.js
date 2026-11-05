@@ -1880,10 +1880,64 @@ window.addEventListener('DOMContentLoaded', initApp);
 // Global state for import
 state.importParsedData = [];
 
+function switchImportTab(tab) {
+  const fileBtn = document.getElementById('tabImportFileBtn');
+  const pasteBtn = document.getElementById('tabImportPasteBtn');
+  const filePanel = document.getElementById('importFileTabPanel');
+  const pastePanel = document.getElementById('importPasteTabPanel');
+  
+  if (tab === 'file') {
+    if (fileBtn) {
+      fileBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-teal-100 text-teal-800 transition flex items-center gap-1.5 shadow-2xs';
+    }
+    if (pasteBtn) {
+      pasteBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-1.5';
+    }
+    if (filePanel) filePanel.classList.remove('hidden');
+    if (pastePanel) pastePanel.classList.add('hidden');
+  } else {
+    if (pasteBtn) {
+      pasteBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-teal-100 text-teal-800 transition flex items-center gap-1.5 shadow-2xs';
+    }
+    if (fileBtn) {
+      fileBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition flex items-center gap-1.5';
+    }
+    if (pastePanel) pastePanel.classList.remove('hidden');
+    if (filePanel) filePanel.classList.add('hidden');
+  }
+}
+
+function handlePastedTextImport() {
+  const textarea = document.getElementById('importPastedText');
+  if (!textarea || !textarea.value.trim()) {
+    alert('សូមបិទភ្ជាប់ (Paste) ទិន្នន័យតារាង ឬ CSV ក្នុងប្រអប់ជាមុនសិន!');
+    return;
+  }
+  
+  if (typeof XLSX === 'undefined') {
+    alert('មិនទាន់ផ្ទុកបណ្ណាល័យ XLSX បាននៅឡើយទេ!');
+    return;
+  }
+  
+  try {
+    const text = textarea.value.trim();
+    const workbook = XLSX.read(text, { type: 'string', raw: true });
+    processWorkbook(workbook, 'pasted_text_data.csv');
+  } catch (err) {
+    console.error('Error parsing pasted text:', err);
+    alert('កំហុសក្នុងការវិភាគអត្ថបទដែលបានបិទភ្ជាប់: ' + err.message);
+  }
+}
+
 function openImportModal() {
   state.importParsedData = [];
   const fileInput = document.getElementById('excelFileInput');
   if (fileInput) fileInput.value = '';
+  
+  const textarea = document.getElementById('importPastedText');
+  if (textarea) textarea.value = '';
+  
+  switchImportTab('file');
   
   const badge = document.getElementById('selectedFileNameBadge');
   if (badge) {
@@ -1983,7 +2037,7 @@ function parseExcelDate(val) {
   return s;
 }
 
-// Handle selected file
+// Handle selected file with intelligent UTF-8 encoding support
 function handleExcelFileSelected(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
@@ -1999,18 +2053,28 @@ function handleExcelFileSelected(event) {
     return;
   }
   
+  const isCsv = file.name.toLowerCase().endsWith('.csv');
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      let workbook;
+      if (isCsv) {
+        workbook = XLSX.read(e.target.result, { type: 'string', raw: true });
+      } else {
+        const data = new Uint8Array(e.target.result);
+        workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      }
       processWorkbook(workbook, file.name);
     } catch (err) {
       console.error('Error parsing excel:', err);
       alert('កំហុសក្នុងការអានឯកសារ Excel: ' + err.message);
     }
   };
-  reader.readAsArrayBuffer(file);
+  if (isCsv) {
+    reader.readAsText(file, 'utf-8');
+  } else {
+    reader.readAsArrayBuffer(file);
+  }
 }
 
 // Process workbook sheets and map columns
@@ -2030,8 +2094,8 @@ function processWorkbook(workbook, fileName) {
     return;
   }
   
-  // Convert sheet to 2D array of rows
-  const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+  // Convert sheet to 2D array of rows with raw: false to keep formatted phone & account strings
+  const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false });
   if (!rawRows || rawRows.length === 0) {
     alert('ឯកសារ Excel គ្មានទិន្នន័យទេ!');
     return;
@@ -2160,6 +2224,12 @@ function processWorkbook(workbook, fileName) {
     const row = rawRows[r];
     if (!row || row.length === 0) continue;
     
+    // Check if row contains metadata / option tables below data
+    const rowStr = row.map(c => String(c || '').trim()).join(' ');
+    if (rowStr.includes('Position benefit') || rowStr.includes('Framework Options') || rowStr.includes('Position Benefit Options')) {
+      break;
+    }
+    
     // Check if empty row
     const rowContent = row.filter(x => x !== null && x !== undefined && String(x).trim() !== '').length;
     if (rowContent === 0) continue;
@@ -2177,6 +2247,9 @@ function processWorkbook(workbook, fileName) {
     
     // Skip if row has no name and no staff_id
     if (!nameKh && !staffIdRaw && !nameEn) continue;
+    // Skip if name is purely numbers (e.g. '2.1') or options
+    if (/^[\d.,\s]+$/.test(nameKh) && !staffIdRaw) continue;
+    if (nameKh.includes('Option') || nameKh.includes('Benefit') || nameKh.includes('version')) continue;
     
     // Clean gender
     let genderVal = getVal(colMappings.gender);
@@ -2255,8 +2328,16 @@ function processWorkbook(workbook, fileName) {
       national_id: normalizeKhmerDigits(getVal(colMappings.national_id)),
       id_issue_date: idIssueDate,
       id_expiry_date: idExpiryDate,
-      account_number: normalizeKhmerDigits(getVal(colMappings.account_number)),
-      phone: normalizeKhmerDigits(getVal(colMappings.phone)),
+      account_number: (() => {
+        let acc = normalizeKhmerDigits(getVal(colMappings.account_number));
+        if (acc && acc.length === 13 && acc.startsWith('400')) acc = '0' + acc;
+        return acc;
+      })(),
+      phone: (() => {
+        let p = normalizeKhmerDigits(getVal(colMappings.phone));
+        if (p && /^[1-9]\d{7,8}$/.test(p)) p = '0' + p;
+        return p;
+      })(),
       note: ''
     };
     
