@@ -1312,6 +1312,82 @@ function exportToCSV() {
     alert('គ្មានទិន្នន័យសម្រាប់ទាញយកទេ!');
     return;
   }
+
+  // If SheetJS is loaded, export directly as a styled native .xlsx workbook
+  if (typeof XLSX !== 'undefined') {
+    const wb = XLSX.utils.book_new();
+    const rows = [
+      [
+        'ល.រ',
+        'អត្តលេខមន្ត្រីរាជការ',
+        'ឈ្មោះមន្ត្រីរាជការ(ខ្មែរ)',
+        'ឈ្មោះមន្ត្រីរាជការ(ឡាតាំង)',
+        'ភេទ',
+        'ថ្ងៃខែឆ្នាំកំណើត',
+        'ទីកន្លែងកំណើត-រាជធានី/ខេត្ត',
+        'ទីកន្លែងកំណើត-ក្រុង/ស្រុក/ខណ្ឌ',
+        'ទីកន្លែងកំណើត-ឃុំ/សង្កាត់',
+        'ទីកន្លែងកំណើត-ភូមិ',
+        'ថ្ងៃខែឆ្នាំចូលបម្រើការជាមន្ត្រីរាជការ',
+        'ថ្ងៃខែឆ្នាំតាំងស៊ប់ក្នុងក្របខ័ណ្ឌ',
+        'ប្រាក់បៀវត្សមូលដ្ឋាន',
+        'ប្រាក់បំណាច់មុខងារ',
+        'មុខងារ',
+        'ប្រាក់វិភាជន៍គ្រួសារ-កូន',
+        'ប្រាក់វិភាជន៍គ្រួសារ-សហព័ទ្ធ',
+        'ឋានន្តរស័ក្តិ-តាមប្រភេទ',
+        'ឋានន្តរស័ក្តិ-កាលបរិច្ឆេទ',
+        'អត្តសញ្ញាប័ណ្ណ-លេខ',
+        'អត្តសញ្ញាប័ណ្ណ-សុពលភាពចាប់ពី',
+        'អត្តសញ្ញាប័ណ្ណ-ផុតសុពលភាពថ្ងៃ',
+        'គណនីធនាគារ',
+        'លេខទូរសព្ទ',
+        'សាលារៀន/អង្គភាព',
+        'លេខកូដសាលា',
+        'ឃុំ/ភូមិសាស្ត្រ',
+        'ផ្សេងៗ'
+      ]
+    ];
+
+    filtered.forEach((item, idx) => {
+      rows.push([
+        idx + 1,
+        item.staff_id || '',
+        item.name_kh || '',
+        item.name_en || '',
+        item.gender_label || (item.gender === 'ស' ? 'ស្រី' : 'ប្រុស'),
+        item.dob || '',
+        item.pob_province || '',
+        item.pob_district || '',
+        item.pob_commune || '',
+        item.pob_village || '',
+        item.join_date || '',
+        item.tenure_date || '',
+        item.base_salary || 0,
+        item.position_allowance || 0,
+        item.position || '',
+        item.family_children || 0,
+        item.family_spouse || 0,
+        item.rank_type || '',
+        item.rank_date || '',
+        item.national_id || '',
+        item.id_issue_date || '',
+        item.id_expiry_date || '',
+        item.account_number || '',
+        item.phone || '',
+        item.school_name || '',
+        item.school_code || '',
+        item.commune_name || '',
+        item.note || ''
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'ទិន្នន័យ');
+    XLSX.writeFile(wb, `បញ្ជីបុគ្គលិកអប់រំ_តាលោសែនជ័យ_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast(`បានទាញយកទិន្នន័យ ${filtered.length} នាក់ ជាឯកសារ Excel (.xlsx) ដោយជោគជ័យ!`, 'success');
+    return;
+  }
   
   let csvContent = '\uFEFF'; // UTF-8 BOM for Microsoft Excel in Windows
   
@@ -1795,3 +1871,794 @@ create policy "Allow public delete access" on public.staff_members for delete us
 
 // Run on window load
 window.addEventListener('DOMContentLoaded', initApp);
+
+
+// ==========================================
+// EXCEL IMPORT & TEMPLATE EXPORT SYSTEM
+// ==========================================
+
+// Global state for import
+state.importParsedData = [];
+
+function openImportModal() {
+  state.importParsedData = [];
+  const fileInput = document.getElementById('excelFileInput');
+  if (fileInput) fileInput.value = '';
+  
+  const badge = document.getElementById('selectedFileNameBadge');
+  if (badge) {
+    badge.textContent = '';
+    badge.classList.add('hidden');
+  }
+  
+  const previewContainer = document.getElementById('importPreviewContainer');
+  if (previewContainer) previewContainer.classList.add('hidden');
+  
+  const progressBarContainer = document.getElementById('importProgressBarContainer');
+  if (progressBarContainer) progressBarContainer.classList.add('hidden');
+  
+  const btn = document.getElementById('btnExecuteImport');
+  if (btn) {
+    btn.disabled = true;
+    const btnText = document.getElementById('btnExecuteImportText');
+    if (btnText) btnText.textContent = 'បញ្ចូលទិន្នន័យទៅក្នុងប្រព័ន្ធរួម';
+  }
+  
+  // Populate default school dropdown with available schools
+  const schoolSelect = document.getElementById('importDefaultSchool');
+  if (schoolSelect) {
+    const schools = Array.from(new Set(state.staffList.map(s => s.school_name).filter(Boolean))).sort();
+    schoolSelect.innerHTML = '<option value="">-- ប្រើតាមក្នុងឯកសារ Excel --</option>' +
+      schools.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  }
+  
+  openModal('importExcelModal');
+}
+
+function clearImportFile() {
+  state.importParsedData = [];
+  const fileInput = document.getElementById('excelFileInput');
+  if (fileInput) fileInput.value = '';
+  
+  const badge = document.getElementById('selectedFileNameBadge');
+  if (badge) {
+    badge.textContent = '';
+    badge.classList.add('hidden');
+  }
+  
+  const previewContainer = document.getElementById('importPreviewContainer');
+  if (previewContainer) previewContainer.classList.add('hidden');
+  
+  const btn = document.getElementById('btnExecuteImport');
+  if (btn) btn.disabled = true;
+}
+
+// Normalize Khmer / Western digits & strings
+function normalizeKhmerDigits(str) {
+  if (str === null || str === undefined) return '';
+  const s = String(str);
+  const khDigits = '០១២៣៤៥៦៧៨៩';
+  return s.replace(/[០-៩]/g, d => khDigits.indexOf(d));
+}
+
+// Convert date strings or Excel serial dates to standard YYYY-MM-DD
+function parseExcelDate(val) {
+  if (!val) return '';
+  if (val instanceof Date && !isNaN(val)) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof val === 'number') {
+    // Excel serial date: 25569 = 1970-01-01
+    if (val > 10000 && val < 60000) {
+      const utcDays = Math.floor(val - 25569);
+      const date = new Date(utcDays * 86400 * 1000);
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(date.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return String(val);
+  }
+  
+  let s = normalizeKhmerDigits(String(val)).trim();
+  // Check if DD/MM/YYYY or DD-MM-YYYY
+  const dmy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    const d = dmy[1].padStart(2, '0');
+    const m = dmy[2].padStart(2, '0');
+    const y = dmy[3];
+    return `${y}-${m}-${d}`;
+  }
+  // Check if YYYY/MM/DD or YYYY-MM-DD
+  const ymd = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymd) {
+    const y = ymd[1];
+    const m = ymd[2].padStart(2, '0');
+    const d = ymd[3].padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return s;
+}
+
+// Handle selected file
+function handleExcelFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  
+  const badge = document.getElementById('selectedFileNameBadge');
+  if (badge) {
+    badge.textContent = `ឯកសារ៖ ${file.name}`;
+    badge.classList.remove('hidden');
+  }
+  
+  if (typeof XLSX === 'undefined') {
+    alert('មិនអាចដំណើរការបណ្ណាល័យ XLSX បានទេ។ សូមពិនិត្យមើលការតភ្ជាប់អ៊ីនធឺណិត ឬ Refresh ទំព័រនេះឡើងវិញ។');
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      processWorkbook(workbook, file.name);
+    } catch (err) {
+      console.error('Error parsing excel:', err);
+      alert('កំហុសក្នុងការអានឯកសារ Excel: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Process workbook sheets and map columns
+function processWorkbook(workbook, fileName) {
+  // Prefer sheet named 'ទិន្នន័យ' or 'តារាងបើកប្រាក់' or first sheet
+  let targetSheetName = workbook.SheetNames[0];
+  for (const name of workbook.SheetNames) {
+    if (name.includes('ទិន្នន័យ') || name.includes('តារាងបើកប្រាក់') || name.includes('បុគ្គលិក') || name.includes('Staff')) {
+      targetSheetName = name;
+      break;
+    }
+  }
+  
+  const worksheet = workbook.Sheets[targetSheetName];
+  if (!worksheet) {
+    alert('រកមិនឃើញតារាងទិន្នន័យក្នុងឯកសារនេះទេ!');
+    return;
+  }
+  
+  // Convert sheet to 2D array of rows
+  const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+  if (!rawRows || rawRows.length === 0) {
+    alert('ឯកសារ Excel គ្មានទិន្នន័យទេ!');
+    return;
+  }
+  
+  // Find header row by scanning first 10 rows
+  let headerRowIndex = -1;
+  for (let r = 0; r < Math.min(10, rawRows.length); r++) {
+    const rowStr = rawRows[r].map(c => String(c || '').trim()).join(' ');
+    if (rowStr.includes('ឈ្មោះ') || rowStr.includes('គោត្តនាម') || rowStr.includes('អត្តលេខ') || rowStr.includes('អក្សរខ្មែរ')) {
+      headerRowIndex = r;
+      break;
+    }
+  }
+  
+  if (headerRowIndex === -1) {
+    alert('មិនអាចកំណត់សម្គាល់ក្បាលតារាង (Header) នៃឯកសារនេះបានទេ! សូមពិនិត្យមើលថាតើមានជួរឈរ "ឈ្មោះ" ឬ "អត្តលេខ" ដែរឬទេ។');
+    return;
+  }
+  
+  const rowA = rawRows[headerRowIndex] || [];
+  const rowB = (headerRowIndex + 1 < rawRows.length) ? rawRows[headerRowIndex + 1] : [];
+  
+  // Determine if it is a two-tier header
+  const rowBStr = rowB.map(c => String(c || '').trim()).join(' ');
+  const isTwoTier = ['ខេត្ត', 'ស្រុក', 'ឃុំ', 'ភូមិ', 'កូន', 'សហព័ទ្ធ', 'តាមប្រភេទ', 'អក្សរឡាតាំង', 'សុពលភាព', 'លេខអត្តសញ្ញាប័ណ្ណ'].some(k => rowBStr.includes(k));
+  
+  const dataStartRow = headerRowIndex + (isTwoTier ? 2 : 1);
+  
+  // Build combined header labels for each column index
+  const colMappings = {};
+  let lastParentHeader = '';
+  
+  const maxCols = Math.max(rowA.length, isTwoTier ? rowB.length : 0);
+  for (let c = 0; c < maxCols; c++) {
+    const parentVal = String(rowA[c] || '').trim();
+    if (parentVal) lastParentHeader = parentVal;
+    
+    const subVal = isTwoTier ? String(rowB[c] || '').trim() : '';
+    let combined = '';
+    if (lastParentHeader && subVal) {
+      combined = lastParentHeader + ' ' + subVal;
+    } else {
+      combined = subVal || parentVal;
+    }
+    
+    // Map keywords to standard field names
+    const combLow = combined.toLowerCase();
+    
+    if (colMappings.staff_id === undefined && (combLow.includes('អត្តលេខ') || combLow.includes('staff_id'))) {
+      colMappings.staff_id = c;
+    } else if (colMappings.name_kh === undefined && (
+      combLow.includes('ឈ្មោះមន្ត្រីរាជការ(ខ្មែរ)') ||
+      combLow.includes('ឈ្មោះ(ខ្មែរ)') ||
+      combLow.includes('អក្សរខ្មែរ') ||
+      (combLow.includes('ឈ្មោះ') && !combLow.includes('ឡាតាំង') && !combLow.includes('សាលា')) ||
+      (combLow.includes('គោត្តនាម') && !combLow.includes('ឡាតាំង'))
+    )) {
+      colMappings.name_kh = c;
+    } else if (colMappings.name_en === undefined && (
+      combLow.includes('ឡាតាំង') ||
+      combLow.includes('latin') ||
+      combLow.includes('english')
+    )) {
+      colMappings.name_en = c;
+    } else if (colMappings.gender === undefined && (combLow.includes('ភេទ') || combLow.includes('gender') || combLow.includes('sex'))) {
+      colMappings.gender = c;
+    } else if (colMappings.dob === undefined && (combLow.includes('កំណើត') || combLow.includes('dob') || combLow.includes('birth'))) {
+      colMappings.dob = c;
+    } else if (colMappings.pob_province === undefined && (combLow.includes('រាជធានី') || combLow.includes('ខេត្ត') || combLow.includes('province'))) {
+      colMappings.pob_province = c;
+    } else if (colMappings.pob_district === undefined && (combLow.includes('ស្រុក') || combLow.includes('ខណ្ឌ') || combLow.includes('ក្រុង') || combLow.includes('district'))) {
+      colMappings.pob_district = c;
+    } else if (colMappings.pob_commune === undefined && (combLow.includes('ឃុំ') || combLow.includes('សង្កាត់') || combLow.includes('commune'))) {
+      colMappings.pob_commune = c;
+    } else if (colMappings.pob_village === undefined && (combLow.includes('ភូមិ') && !combLow.includes('ភូមិសាស្ត្រ') || combLow.includes('village'))) {
+      colMappings.pob_village = c;
+    } else if (colMappings.join_date === undefined && (combLow.includes('ចូលបម្រើ') || combLow.includes('join_date'))) {
+      colMappings.join_date = c;
+    } else if (colMappings.tenure_date === undefined && (combLow.includes('តាំងស៊ប់') || combLow.includes('tenure'))) {
+      colMappings.tenure_date = c;
+    } else if (colMappings.base_salary === undefined && (combLow.includes('មូលដ្ឋាន') || combLow.includes('base_salary'))) {
+      colMappings.base_salary = c;
+    } else if (colMappings.position_allowance === undefined && (combLow.includes('បំណាច់') || combLow.includes('allowance'))) {
+      colMappings.position_allowance = c;
+    } else if (colMappings.position === undefined && (combLow.includes('មុខងារ') || combLow.includes('តួនាទី') || combLow.includes('position'))) {
+      colMappings.position = c;
+    } else if (colMappings.family_children === undefined && (combLow.includes('កូន') || combLow.includes('children'))) {
+      colMappings.family_children = c;
+    } else if (colMappings.family_spouse === undefined && (combLow.includes('សហព័ទ្ធ') || combLow.includes('spouse'))) {
+      colMappings.family_spouse = c;
+    } else if (colMappings.rank_type === undefined && (combLow.includes('តាមប្រភេទ') || combLow.includes('កាំប្រាក់') || combLow.includes('ឋានន្តរ'))) {
+      colMappings.rank_type = c;
+    } else if (colMappings.rank_date === undefined && (combLow.includes('កាលបរិច្ឆេទ') || combLow.includes('rank_date'))) {
+      colMappings.rank_date = c;
+    } else if (colMappings.national_id === undefined && (combLow.includes('អត្តសញ្ញាណ') || combLow.includes('អត្តសញ្ញាប័ណ្ណ') || combLow.includes('nid'))) {
+      colMappings.national_id = c;
+    } else if (colMappings.id_issue_date === undefined && (combLow.includes('សុពលភាពចាប់ពី') || combLow.includes('issue_date'))) {
+      colMappings.id_issue_date = c;
+    } else if (colMappings.id_expiry_date === undefined && (combLow.includes('ផុតសុពលភាព') || combLow.includes('ផុតកំណត់') || combLow.includes('expiry_date'))) {
+      colMappings.id_expiry_date = c;
+    } else if (colMappings.account_number === undefined && (combLow.includes('គណនី') || combLow.includes('bank') || combLow.includes('account'))) {
+      colMappings.account_number = c;
+    } else if (colMappings.phone === undefined && (combLow.includes('ទូរសព្ទ') || combLow.includes('ទូរស័ព្ទ') || combLow.includes('phone') || combLow.includes('tel'))) {
+      colMappings.phone = c;
+    } else if (colMappings.school_name === undefined && (combLow.includes('សាលា') || combLow.includes('អង្គភាព') || combLow.includes('school'))) {
+      colMappings.school_name = c;
+    } else if (colMappings.school_code === undefined && combLow.includes('កូដសាលា')) {
+      colMappings.school_code = c;
+    } else if (colMappings.commune_code === undefined && (combLow.includes('កូដភូមិសាស្ត្រ') || combLow.includes('ភូមិសាស្ត្រ'))) {
+      colMappings.commune_code = c;
+    }
+  }
+  
+  if (colMappings.name_kh === undefined && colMappings.staff_id === undefined) {
+    alert('មិនអាចរកឃើញជួរឈរ "ឈ្មោះ" ឬ "អត្តលេខ" ក្នុងតារាងទេ! សូមពិនិត្យមើលក្បាលតារាង។');
+    return;
+  }
+  
+  // Parse rows
+  const parsedRecords = [];
+  const defaultStaffType = document.getElementById('importDefaultStaffType').value || 'មន្ត្រីរាជការ';
+  const defaultSchool = document.getElementById('importDefaultSchool').value || '';
+  
+  for (let r = dataStartRow; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.length === 0) continue;
+    
+    // Check if empty row
+    const rowContent = row.filter(x => x !== null && x !== undefined && String(x).trim() !== '').length;
+    if (rowContent === 0) continue;
+    
+    // Helper getter
+    const getVal = (colIdx) => {
+      if (colIdx === undefined || colIdx >= row.length) return '';
+      const v = row[colIdx];
+      return v !== null && v !== undefined ? String(v).trim() : '';
+    };
+    
+    const nameKh = getVal(colMappings.name_kh);
+    const staffIdRaw = getVal(colMappings.staff_id);
+    const nameEn = getVal(colMappings.name_en);
+    
+    // Skip if row has no name and no staff_id
+    if (!nameKh && !staffIdRaw && !nameEn) continue;
+    
+    // Clean gender
+    let genderVal = getVal(colMappings.gender);
+    let gender = 'ប';
+    let genderLabel = 'ប្រុស';
+    if (genderVal) {
+      const gNorm = genderVal.toLowerCase();
+      if (gNorm === 'ស' || gNorm === 'ស្រី' || gNorm === 'f' || gNorm === 'female') {
+        gender = 'ស';
+        genderLabel = 'ស្រី';
+      }
+    }
+    
+    // Clean numbers
+    const cleanNum = (str) => {
+      if (!str) return 0;
+      const cleaned = normalizeKhmerDigits(str).replace(/[^\d.-]/g, '');
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? 0 : n;
+    };
+    
+    // Clean dates
+    const dob = parseExcelDate(colMappings.dob !== undefined ? row[colMappings.dob] : '');
+    const joinDate = parseExcelDate(colMappings.join_date !== undefined ? row[colMappings.join_date] : '');
+    const tenureDate = parseExcelDate(colMappings.tenure_date !== undefined ? row[colMappings.tenure_date] : '');
+    const rankDate = parseExcelDate(colMappings.rank_date !== undefined ? row[colMappings.rank_date] : '');
+    const idIssueDate = parseExcelDate(colMappings.id_issue_date !== undefined ? row[colMappings.id_issue_date] : '');
+    const idExpiryDate = parseExcelDate(colMappings.id_expiry_date !== undefined ? row[colMappings.id_expiry_date] : '');
+    
+    // Clean position & rank
+    const position = getVal(colMappings.position);
+    let rankType = getVal(colMappings.rank_type);
+    
+    // Clean base salary & allowance
+    let baseSalary = cleanNum(getVal(colMappings.base_salary));
+    let posAllowance = cleanNum(getVal(colMappings.position_allowance));
+    
+    // Auto-calculate base salary if rank_type provided and salary is 0
+    if (baseSalary === 0 && rankType && SALARY_SCALE_RATES[rankType]) {
+      baseSalary = SALARY_SCALE_RATES[rankType];
+    }
+    // Auto-calculate position allowance if position provided and allowance is 0
+    if (posAllowance === 0 && position && POSITION_ALLOWANCE_RATES[position]) {
+      posAllowance = POSITION_ALLOWANCE_RATES[position];
+    }
+    
+    // School name
+    let schoolName = getVal(colMappings.school_name) || defaultSchool;
+    
+    // Record object
+    const record = {
+      staff_id: normalizeKhmerDigits(staffIdRaw),
+      staff_type: defaultStaffType,
+      name_kh: nameKh,
+      name_en: nameEn,
+      gender: gender,
+      gender_label: genderLabel,
+      dob: dob,
+      pob_province: getVal(colMappings.pob_province),
+      pob_district: getVal(colMappings.pob_district),
+      pob_commune: getVal(colMappings.pob_commune),
+      pob_village: getVal(colMappings.pob_village),
+      join_date: joinDate,
+      tenure_date: tenureDate,
+      base_salary: baseSalary,
+      position_allowance: posAllowance,
+      position: position,
+      family_children: cleanNum(getVal(colMappings.family_children)),
+      family_spouse: cleanNum(getVal(colMappings.family_spouse)),
+      rank_type: rankType,
+      rank_date: rankDate,
+      school_code: getVal(colMappings.school_code),
+      school_name: schoolName,
+      commune_code: getVal(colMappings.commune_code),
+      commune_name: '',
+      national_id: normalizeKhmerDigits(getVal(colMappings.national_id)),
+      id_issue_date: idIssueDate,
+      id_expiry_date: idExpiryDate,
+      account_number: normalizeKhmerDigits(getVal(colMappings.account_number)),
+      phone: normalizeKhmerDigits(getVal(colMappings.phone)),
+      note: ''
+    };
+    
+    parsedRecords.push(record);
+  }
+  
+  if (parsedRecords.length === 0) {
+    alert('មិនមានទិន្នន័យបុគ្គលិកត្រឹមត្រូវក្នុងឯកសារនេះទេ!');
+    return;
+  }
+  
+  state.importParsedData = parsedRecords;
+  renderExcelPreview(parsedRecords, colMappings);
+}
+
+// Render Preview Table
+function renderExcelPreview(records, colMappings) {
+  const container = document.getElementById('importPreviewContainer');
+  const countBadge = document.getElementById('previewCountBadge');
+  const infoText = document.getElementById('previewColumnsInfo');
+  const tbody = document.getElementById('previewTableBody');
+  const btn = document.getElementById('btnExecuteImport');
+  const btnText = document.getElementById('btnExecuteImportText');
+  
+  if (!container || !tbody) return;
+  
+  container.classList.remove('hidden');
+  countBadge.textContent = `${records.length} នាក់`;
+  
+  const mappedColsCount = Object.keys(colMappings).length;
+  infoText.textContent = `បានផ្គូផ្គងស្វ័យប្រវត្តិចំនួន ${mappedColsCount} ជួរឈរ`;
+  
+  tbody.innerHTML = records.slice(0, 50).map((r, i) => `
+    <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+      <td class="p-2 text-center text-slate-400 font-mono text-[11px]">${i + 1}</td>
+      <td class="p-2 font-mono font-medium text-blue-700">${escapeHtml(r.staff_id || '-')}</td>
+      <td class="p-2 font-bold text-slate-800">${escapeHtml(r.name_kh || '-')}</td>
+      <td class="p-2 text-slate-600">${escapeHtml(r.name_en || '-')}</td>
+      <td class="p-2 text-center">
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${r.gender === 'ស' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}">
+          ${r.gender_label}
+        </span>
+      </td>
+      <td class="p-2 font-mono text-slate-600">${escapeHtml(r.dob || '-')}</td>
+      <td class="p-2 text-slate-700">${escapeHtml(r.position || '-')}</td>
+      <td class="p-2 font-mono text-slate-700">${escapeHtml(r.rank_type || '-')}</td>
+      <td class="p-2 text-slate-600">${escapeHtml(r.school_name || '-')}</td>
+    </tr>
+  `).join('');
+  
+  if (records.length > 50) {
+    tbody.innerHTML += `
+      <tr class="bg-slate-50 text-center text-slate-500 font-medium italic text-xs">
+        <td colspan="9" class="p-2.5">... និងនៅសល់ចំនួន ${records.length - 50} នាក់ទៀត ...</td>
+      </tr>
+    `;
+  }
+  
+  if (btn) {
+    btn.disabled = false;
+    if (btnText) btnText.textContent = `📥 បញ្ចូលទិន្នន័យទាំងអស់ (${records.length} នាក់) ទៅក្នុងប្រព័ន្ធរួម`;
+  }
+}
+
+// Execute Import and Batch Save to Supabase + Local State
+async function executeExcelImport() {
+  if (!state.importParsedData || state.importParsedData.length === 0) {
+    alert('គ្មានទិន្នន័យសម្រាប់បញ្ចូលទេ!');
+    return;
+  }
+  
+  const records = state.importParsedData;
+  const mode = document.getElementById('importMode').value || 'upsert';
+  const defaultSchool = document.getElementById('importDefaultSchool').value;
+  const defaultStaffType = document.getElementById('importDefaultStaffType').value;
+  
+  const btn = document.getElementById('btnExecuteImport');
+  const btnText = document.getElementById('btnExecuteImportText');
+  const progressContainer = document.getElementById('importProgressBarContainer');
+  const progressBar = document.getElementById('importProgressBar');
+  const progressStatus = document.getElementById('importProgressStatusText');
+  const progressPercent = document.getElementById('importProgressPercentText');
+  
+  if (btn) btn.disabled = true;
+  if (progressContainer) progressContainer.classList.remove('hidden');
+  
+  try {
+    // 1. Determine next base ID from Supabase if connected
+    let nextId = 1;
+    if (state.supabase.connected && state.supabase.client) {
+      try {
+        const { data: maxRows } = await state.supabase.client
+          .from('staff_members')
+          .select('id')
+          .order('id', { ascending: false })
+          .limit(1);
+        if (maxRows && maxRows.length > 0 && maxRows[0].id) {
+          nextId = Number(maxRows[0].id) + 1;
+        }
+      } catch (e) {
+        console.warn('Could not query max id from Supabase:', e);
+      }
+    }
+    if (nextId === 1 && state.staffList.length > 0) {
+      nextId = Math.max(...state.staffList.map(x => x.id || 0)) + 1;
+    }
+    
+    // 2. Prepare items with unique IDs and match with existing
+    const preparedItems = [];
+    const nowIso = new Date().toISOString();
+    
+    records.forEach(rec => {
+      // Overwrite default school or staff_type if selected
+      if (defaultSchool && !rec.school_name) {
+        rec.school_name = defaultSchool;
+      }
+      if (defaultStaffType && !rec.staff_type) {
+        rec.staff_type = defaultStaffType;
+      }
+      
+      let matched = null;
+      if (mode === 'upsert') {
+        // Try match by staff_id
+        if (rec.staff_id) {
+          matched = state.staffList.find(s => s.staff_id && s.staff_id === rec.staff_id);
+        }
+        // Try match by name_kh if not matched
+        if (!matched && rec.name_kh) {
+          matched = state.staffList.find(s => s.name_kh === rec.name_kh && (!rec.school_name || s.school_name === rec.school_name));
+        }
+      }
+      
+      const itemToSave = {
+        id: matched ? matched.id : (nextId++),
+        staff_id: rec.staff_id || (matched ? matched.staff_id : ''),
+        staff_type: rec.staff_type || (matched ? matched.staff_type : 'មន្ត្រីរាជការ'),
+        name_kh: rec.name_kh || (matched ? matched.name_kh : ''),
+        name_en: rec.name_en || (matched ? matched.name_en : ''),
+        gender: rec.gender || (matched ? matched.gender : 'ប'),
+        gender_label: rec.gender_label || (matched ? matched.gender_label : 'ប្រុស'),
+        dob: rec.dob || (matched ? matched.dob : ''),
+        pob_province: rec.pob_province || (matched ? matched.pob_province : ''),
+        pob_district: rec.pob_district || (matched ? matched.pob_district : ''),
+        pob_commune: rec.pob_commune || (matched ? matched.pob_commune : ''),
+        pob_village: rec.pob_village || (matched ? matched.pob_village : ''),
+        join_date: rec.join_date || (matched ? matched.join_date : ''),
+        tenure_date: rec.tenure_date || (matched ? matched.tenure_date : ''),
+        base_salary: rec.base_salary !== undefined ? rec.base_salary : (matched ? matched.base_salary : 0),
+        position_allowance: rec.position_allowance !== undefined ? rec.position_allowance : (matched ? matched.position_allowance : 0),
+        position: rec.position || (matched ? matched.position : ''),
+        family_children: rec.family_children !== undefined ? rec.family_children : (matched ? matched.family_children : 0),
+        family_spouse: rec.family_spouse !== undefined ? rec.family_spouse : (matched ? matched.family_spouse : 0),
+        rank_type: rec.rank_type || (matched ? matched.rank_type : ''),
+        rank_date: rec.rank_date || (matched ? matched.rank_date : ''),
+        school_code: rec.school_code || (matched ? matched.school_code : ''),
+        school_name: rec.school_name || (matched ? matched.school_name : ''),
+        commune_code: rec.commune_code || (matched ? matched.commune_code : ''),
+        commune_name: rec.commune_name || (matched ? matched.commune_name : ''),
+        national_id: rec.national_id || (matched ? matched.national_id : ''),
+        id_issue_date: rec.id_issue_date || (matched ? matched.id_issue_date : ''),
+        id_expiry_date: rec.id_expiry_date || (matched ? matched.id_expiry_date : ''),
+        account_number: rec.account_number || (matched ? matched.account_number : ''),
+        phone: rec.phone || (matched ? matched.phone : ''),
+        note: rec.note || (matched ? matched.note : ''),
+        updated_at: nowIso
+      };
+      
+      preparedItems.push(itemToSave);
+    });
+    
+    // 3. Batch upload to Supabase if connected
+    if (state.supabase.connected && state.supabase.client) {
+      const chunkSize = 50;
+      for (let i = 0; i < preparedItems.length; i += chunkSize) {
+        const chunk = preparedItems.slice(i, i + chunkSize);
+        const percent = Math.round(((i + chunk.length) / preparedItems.length) * 100);
+        
+        if (progressStatus) progressStatus.textContent = `កំពុងបញ្ជូនទៅ Supabase Cloud: ${i + chunk.length} / ${preparedItems.length}...`;
+        if (progressPercent) progressPercent.textContent = `${percent}%`;
+        if (progressBar) progressBar.style.width = `${percent}%`;
+        
+        const { error } = await state.supabase.client.from('staff_members').upsert(chunk);
+        if (error) {
+          console.error('Supabase batch upsert error:', error);
+          throw error;
+        }
+      }
+    }
+    
+    // 4. Update local state
+    preparedItems.forEach(item => {
+      const existingIdx = state.staffList.findIndex(s => s.id === item.id);
+      if (existingIdx !== -1) {
+        state.staffList[existingIdx] = item;
+      } else {
+        state.staffList.push(item);
+      }
+    });
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.staffList));
+    } catch (storeErr) {
+      console.warn('LocalStorage save failed:', storeErr);
+    }
+    
+    // Refresh UI
+    populateSchoolFilterDropdown();
+    render();
+    if (state.supabase.connected) {
+      updateSupabaseStatusUI(true, 'ប្រព័ន្ធរួម: Cloud Live', state.staffList.length);
+    }
+    
+    // Close modal and show success
+    closeModal('importExcelModal');
+    showToast(`🎉 បាននាំចូលទិន្នន័យចំនួន ${preparedItems.length} នាក់ ទៅក្នុងប្រព័ន្ធរួមដោយជោគជ័យ!`, 'success');
+    
+  } catch (err) {
+    console.error('Error during import execution:', err);
+    alert(`បញ្ហាក្នុងការបញ្ចូលទិន្នន័យ៖ ${err.message}`);
+    if (btn) btn.disabled = false;
+  } finally {
+    if (progressContainer) progressContainer.classList.add('hidden');
+  }
+}
+
+// Download Official Blank Excel Template (.xlsx) matching the 23 standard columns
+function downloadSampleExcelTemplate() {
+  if (typeof XLSX === 'undefined') {
+    alert('មិនទាន់ផ្ទុកបណ្ណាល័យ XLSX បាននៅឡើយទេ។ សូមពិនិត្យមើលការតភ្ជាប់អ៊ីនធឺណិត។');
+    return;
+  }
+  
+  const wb = XLSX.utils.book_new();
+  
+  const headerRow1 = [
+    'ល.រ',
+    'អត្តលេខមន្ត្រីរាជការ',
+    'ឈ្មោះមន្ត្រីរាជការ(ខ្មែរ)',
+    'ឈ្មោះមន្ត្រីរាជការ(ឡាតាំង)',
+    'ភេទ',
+    'ថ្ងៃខែឆ្នាំកំណើត',
+    'ទីកន្លែងកំណើត',
+    '',
+    '',
+    '',
+    'ថ្ងៃខែឆ្នាំចូលបម្រើការជាមន្ត្រីរាជការ',
+    'ថ្ងៃខែឆ្នាំតាំងស៊ប់ក្នុងក្របខ័ណ្ឌ',
+    'ប្រាក់បៀវត្សមូលដ្ឋាន',
+    'ប្រាក់បំណាច់មុខងារ',
+    'មុខងារ',
+    'ប្រាក់វិភាជន៍គ្រួសារ',
+    '',
+    'ឋានន្តរស័ក្តិ និងថ្នាក់ដំឡើងចុងក្រោយ',
+    '',
+    'អត្តសញ្ញាប័ណ្ណសញ្ញជាតិខ្មែរ',
+    '',
+    '',
+    'គណនីធនាគារ',
+    'លេខទូរសព្ទ',
+    'សាលារៀន/អង្គភាព'
+  ];
+  
+  const headerRow2 = [
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    'រាជធានី/ខេត្ត',
+    'ក្រុង/ស្រុក/ខណ្ឌ',
+    'ឃុំ/សង្កាត់',
+    'ភូមិ',
+    '',
+    '',
+    '',
+    '',
+    '',
+    'កូន',
+    'សហព័ទ្ធ',
+    'តាមប្រភេទ',
+    'កាលបរិច្ឆេទ',
+    'លេខអត្តសញ្ញាប័ណ្ណ',
+    'សុពលភាពចាប់ពី',
+    'ផុតសុពលភាពថ្ងៃ',
+    '',
+    '',
+    ''
+  ];
+  
+  const sampleRow1 = [
+    1,
+    '2001500001',
+    'សុខ សំបូរ',
+    'SOK SAMBOR',
+    'ប្រុស',
+    '1985-05-15',
+    'ពោធិ៍សាត់',
+    'តាលោសែនជ័យ',
+    'តាលោ',
+    'ព្រៃកន្ទួត',
+    '2010-10-01',
+    '2012-10-01',
+    1165090,
+    800000,
+    'គ្រូបង្រៀនកម្រិតបឋម',
+    1,
+    1,
+    'ក២.១',
+    '2024-04-13',
+    '010203040',
+    '2015-01-10',
+    '2025-01-10',
+    '34580160899715',
+    '012345678',
+    'បឋមសិក្សាតាលោ'
+  ];
+  
+  const sampleRow2 = [
+    2,
+    '2001500002',
+    'ចាន់ ធីតា',
+    'CHAN THIDA',
+    'ស្រី',
+    '1990-08-20',
+    'ពោធិ៍សាត់',
+    'តាលោសែនជ័យ',
+    'ផ្ទះរុង',
+    'ទួលទទឹង',
+    '2014-11-01',
+    '2016-11-01',
+    1078300,
+    900000,
+    'នាយកសាលាបឋមសិក្សា',
+    2,
+    0,
+    'ក២.៣',
+    '2023-05-01',
+    '010203041',
+    '2016-02-15',
+    '2026-02-15',
+    '34580160899716',
+    '098765432',
+    'បឋមសិក្សាផ្ទះរុង'
+  ];
+  
+  const sheetData = [headerRow1, headerRow2, sampleRow1, sampleRow2];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  
+  // Merged headers configuration
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },   // ល.រ
+    { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },   // អត្តលេខ
+    { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } },   // ឈ្មោះខ្មែរ
+    { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } },   // ឈ្មោះឡាតាំង
+    { s: { r: 0, c: 4 }, e: { r: 1, c: 4 } },   // ភេទ
+    { s: { r: 0, c: 5 }, e: { r: 1, c: 5 } },   // ថ្ងៃកំណើត
+    { s: { r: 0, c: 6 }, e: { r: 0, c: 9 } },   // ទីកន្លែងកំណើត
+    { s: { r: 0, c: 10 }, e: { r: 1, c: 10 } }, // ចូលបម្រើ
+    { s: { r: 0, c: 11 }, e: { r: 1, c: 11 } }, // តាំងស៊ប់
+    { s: { r: 0, c: 12 }, e: { r: 1, c: 12 } }, // មូលដ្ឋាន
+    { s: { r: 0, c: 13 }, e: { r: 1, c: 13 } }, // បំណាច់
+    { s: { r: 0, c: 14 }, e: { r: 1, c: 14 } }, // មុខងារ
+    { s: { r: 0, c: 15 }, e: { r: 0, c: 16 } }, // វិភាជន៍
+    { s: { r: 0, c: 17 }, e: { r: 0, c: 18 } }, // ឋានន្តរ
+    { s: { r: 0, c: 19 }, e: { r: 0, c: 21 } }, // អត្តសញ្ញាប័ណ្ណ
+    { s: { r: 0, c: 22 }, e: { r: 1, c: 22 } }, // គណនី
+    { s: { r: 0, c: 23 }, e: { r: 1, c: 23 } }, // ទូរសព្ទ
+    { s: { r: 0, c: 24 }, e: { r: 1, c: 24 } }  // សាលារៀន
+  ];
+  
+  // Set nice column widths
+  ws['!cols'] = [
+    { wch: 6 },  // ល.រ
+    { wch: 15 }, // អត្តលេខ
+    { wch: 18 }, // ឈ្មោះខ្មែរ
+    { wch: 18 }, // ឈ្មោះឡាតាំង
+    { wch: 8 },  // ភេទ
+    { wch: 14 }, // ថ្ងៃកំណើត
+    { wch: 16 }, // ខេត្ត
+    { wch: 16 }, // ស្រុក
+    { wch: 16 }, // ឃុំ
+    { wch: 16 }, // ភូមិ
+    { wch: 14 }, // ចូលបម្រើ
+    { wch: 14 }, // តាំងស៊ប់
+    { wch: 14 }, // មូលដ្ឋាន
+    { wch: 14 }, // បំណាច់
+    { wch: 22 }, // មុខងារ
+    { wch: 8 },  // កូន
+    { wch: 8 },  // សហព័ទ្ធ
+    { wch: 12 }, // តាមប្រភេទ
+    { wch: 14 }, // កាលបរិច្ឆេទ
+    { wch: 18 }, // លេខអត្តសញ្ញាណ
+    { wch: 14 }, // សុពលភាព
+    { wch: 14 }, // ផុតសុពលភាព
+    { wch: 18 }, // គណនី
+    { wch: 14 }, // ទូរសព្ទ
+    { wch: 22 }  // សាលារៀន
+  ];
+  
+  XLSX.utils.book_append_sheet(wb, ws, 'ទិន្នន័យ');
+  XLSX.writeFile(wb, 'គំរូទម្រង់ស្រង់ទិន្នន័យមន្ត្រីរាជការ_តាលោសែនជ័យ.xlsx');
+  showToast('បានទាញយកឯកសារគំរូ Excel (.xlsx) ដោយជោគជ័យ!', 'success');
+}
