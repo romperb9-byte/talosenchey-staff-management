@@ -68,6 +68,7 @@ const state = {
 function initApp() {
   loadData();
   populateSchoolFilterDropdown();
+  setupExcelDropZone();
   setupEventListeners();
   initSupabase();
   render();
@@ -2048,23 +2049,77 @@ function parseExcelDate(val) {
   return s;
 }
 
-// Handle selected file with intelligent UTF-8 encoding support
-function handleExcelFileSelected(event) {
-  const file = event.target.files && event.target.files[0];
+
+// Drag and Drop Zone Setup for Excel/CSV Files
+function setupExcelDropZone() {
+  const dropZone = document.getElementById('excelDropZone');
+  if (!dropZone) return;
+
+  // Highlight drop area when item is dragged over it
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('border-teal-600', 'bg-teal-100/80', 'ring-4', 'ring-teal-200');
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('border-teal-600', 'bg-teal-100/80', 'ring-4', 'ring-teal-200');
+    }, false);
+  });
+
+  // Handle dropped files
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dt = e.dataTransfer;
+    const files = dt && dt.files;
+    if (files && files.length > 0) {
+      processExcelUploadFile(files[0]);
+    }
+  }, false);
+
+  // Prevent default window drop navigation
+  window.addEventListener('dragover', (e) => {
+    if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+    }
+  }, false);
+  window.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+    }
+  }, false);
+}
+
+// Process single uploaded/dropped Excel or CSV file
+function processExcelUploadFile(file) {
   if (!file) return;
-  
-  const badge = document.getElementById('selectedFileNameBadge');
-  if (badge) {
-    badge.textContent = `ឯកសារ៖ ${file.name}`;
-    badge.classList.remove('hidden');
-  }
-  
-  if (typeof XLSX === 'undefined') {
-    alert('មិនអាចដំណើរការបណ្ណាល័យ XLSX បានទេ។ សូមពិនិត្យមើលការតភ្ជាប់អ៊ីនធឺណិត ឬ Refresh ទំព័រនេះឡើងវិញ។');
+
+  const validExts = ['.xlsx', '.xls', '.csv'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!validExts.includes(ext)) {
+    alert('សូមជ្រើសរើសឯកសារ Excel (.xlsx, .xls) ឬ CSV (.csv)!');
     return;
   }
-  
-  const isCsv = file.name.toLowerCase().endsWith('.csv');
+
+  const badge = document.getElementById('selectedFileNameBadge');
+  if (badge) {
+    const sizeKb = Math.max(1, Math.round(file.size / 1024));
+    badge.textContent = `📄 ${file.name} (${sizeKb} KB)`;
+    badge.classList.remove('hidden');
+  }
+
+  if (typeof XLSX === 'undefined') {
+    alert('មិនទាន់ផ្ទុកបណ្ណាល័យ XLSX បាននៅឡើយទេ។ សូមពិនិត្យមើលការតភ្ជាប់អ៊ីនធឺណិត ឬ Refresh ទំព័រនេះឡើងវិញ។');
+    return;
+  }
+
+  const isCsv = ext === '.csv';
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
@@ -2081,11 +2136,18 @@ function handleExcelFileSelected(event) {
       alert('កំហុសក្នុងការអានឯកសារ Excel: ' + err.message);
     }
   };
+
   if (isCsv) {
     reader.readAsText(file, 'utf-8');
   } else {
     reader.readAsArrayBuffer(file);
   }
+}
+
+function handleExcelFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  processExcelUploadFile(file);
 }
 
 // Process workbook sheets and map columns
