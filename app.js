@@ -1880,6 +1880,17 @@ window.addEventListener('DOMContentLoaded', initApp);
 // Global state for import
 state.importParsedData = [];
 
+// HTML Escaping Utility for safe UI rendering
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function switchImportTab(tab) {
   const fileBtn = document.getElementById('tabImportFileBtn');
   const pasteBtn = document.getElementById('tabImportPasteBtn');
